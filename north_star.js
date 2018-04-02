@@ -1,12 +1,7 @@
 // north_star.js ~ Copyright 2018 Manchester Makerspace ~ License MIT
 // millisecond conversions
 var ONE_DAY = 86400000;
-var DAYS_3  = ONE_DAY * 3;
-var DAYS_6 = ONE_DAY * 6;
-var DAYS_7 = ONE_DAY * 7;
-var DAYS_13 = ONE_DAY * 13;
-var DAYS_14 = ONE_DAY * 14;
-var MEMBER_ACTIVITY_GOAL = 5; // corilates to minimal number of checkin in a month needed to constitute as an actively using the space
+var MEMBER_ACTIVITY_GOAL = 2; // corilates to minimal number of checkin in a month needed to constitute as an actively using the space
 
 var slack = {
     webhook: require('@slack/client').IncomingWebhook,   // url to slack intergration called "webhook" can post to any channel as a "bot"
@@ -43,12 +38,15 @@ var compile = {
     records: [],
     checkins: function(record){ // copiles records into compile.records
         for(var i=0; i<compile.records.length; i++){
-            if(compile.records[i].name === record.name){
-                compile.records[i].checkins++;
+            if(compile.records[i].name === record.name){                 // if this matches an existing check-in
+                if(compile.records[i].lastTime + ONE_DAY < record.time){ // for this period and check-in has x seperation from last
+                    compile.records[i].lastTime = record.time;           // keep track of last valid check-in
+                    compile.records[i].checkins++;
+                }
                 return;
             }
         }
-        compile.records.push({name: record.name, checkins:1}); // given this is a new record
+        compile.records.push({name: record.name, checkins:1, lastTime: record.time}); // given this is a new record
     },
     dCount: function(){
         var activeMembers = 0;
@@ -62,7 +60,10 @@ var compile = {
 var check = {
     past: function(period){
         mongo.connectAndDo(function onconnect(db){
-            check.stream(db.collection('checkins').find({$gt: period}), db); // pass cursor from query and db objects to start a stream
+            check.stream(db.collection('checkins').aggregate([
+                { $match: {time: {$gt: period} } },
+                { $sort : { time: 1 } }
+            ]), db); // pass cursor from query and db objects to start a stream
         }, function onError(error){                                          // doubt this will happen but Murphy
             slack.send('could not connect to database for whatever reason, see logs');
             console.log('connect error ' + error);
@@ -98,7 +99,4 @@ function startup(event, context){
 }
 
 if(process.env.LAMBDA === 'true'){exports.start = startup;}
-else {
-    startup();
-    setInterval(startup, ONE_DAY); // just keep it on for testing purposes
-}
+else {startup();}
