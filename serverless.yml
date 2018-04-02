@@ -1,0 +1,11 @@
+service: north_star
+
+provider:
+  name: aws
+  runtime: nodejs6.10
+
+functions:
+  reminders:
+    handler: north_star.start
+    events:
+      - schedule: cron(0 11 * * ? *)

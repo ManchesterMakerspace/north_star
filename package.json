@@ -1,0 +1,26 @@
+{
+  "name": "north_star",
+  "version": "1.0.0",
+  "description": "Reports on member activity in the space based on check ins",
+  "main": "northStar.js",
+  "scripts": {
+    "postversion": "git push",
+    "start": "northStar.js",
+    "setup": "npm install pm2 jitploy && git clone https://github.com/ManchesterMakerspace/north_star.git"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ManchesterMakerspace/north_star.git"
+  },
+  "author": "Manchester Makerspace",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/ManchesterMakerspace/north_star/issues"
+  },
+  "homepage": "https://github.com/ManchesterMakerspace/north_star#readme",
+  "private": true,
+  "dependencies": {
+    "@slack/client": "^3.14.1",
+    "mongodb": "^2.2.33"
+  }
+}
