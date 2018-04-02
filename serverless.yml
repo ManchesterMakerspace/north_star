@@ -1,4 +1,4 @@
-service: north_star
+service: north-star
 
 provider:
   name: aws
