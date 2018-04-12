@@ -51,9 +51,12 @@ var compile = {
     dCount: function(){
         var activeMembers = 0;
         compile.records.forEach(function(member){ // for every member that excedes member activity goal increment active member count
-            if(member.checkins >= MEMBER_ACTIVITY_GOAL){activeMembers++;}
+            if(member.checkins >= MEMBER_ACTIVITY_GOAL){
+                activeMembers++;
+                slack.send(member.name + ': ' + member.checkins);
+            }
         });
-        slack.send('We had ' + activeMembers + ' members actively using the makerspace this month');
+        slack.send('We had ' + activeMembers + ' members actively using the makerspace the past month');
     }
 };
 
