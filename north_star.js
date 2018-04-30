@@ -36,7 +36,11 @@ var mongo = {
 
 var compile = {
     records: [],
-    checkins: function(record){ // copiles records into compile.records
+    ignoreList: ['Landlords Fob', "Landlord's Fob 2"], // Not a great way to this but its more space efficient than alternitives
+    checkins: function(record){                        // copiles records into compile.records
+        for(var ignore=0; ignore<compile.ignoreList.length; ignore++){
+            if(record.name  === compile.ignoreList[ignore]){return;}     // ignores non member records
+        }
         for(var i=0; i<compile.records.length; i++){
             if(compile.records[i].name === record.name){                 // if this matches an existing check-in
                 if(compile.records[i].lastTime + ONE_DAY < record.time){ // for this period and check-in has x seperation from last
