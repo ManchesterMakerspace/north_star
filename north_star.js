@@ -1,7 +1,7 @@
 // north_star.js ~ Copyright 2018 Manchester Makerspace ~ License MIT
 // millisecond conversions
 var ONE_DAY = 86400000;
-var MEMBER_ACTIVITY_GOAL = 2; // corilates to minimal number of checkin in a month needed to constitute as an actively using the space
+var MEMBER_ACTIVITY_GOAL = 3; // corilates to minimal number of checkin in a month needed to constitute as an actively using the space
 
 var slack = {
     webhook: require('@slack/client').IncomingWebhook,   // url to slack intergration called "webhook" can post to any channel as a "bot"
