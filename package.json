@@ -20,7 +20,7 @@
   "homepage": "https://github.com/ManchesterMakerspace/north_star#readme",
   "private": true,
   "dependencies": {
-    "@slack/client": "^3.14.1",
+    "@slack/client": "^4.2.0",
     "mongodb": "^2.2.33"
   }
 }
