@@ -8,4 +8,4 @@ functions:
   reminders:
     handler: north_star.start
     events:
-      - schedule: cron(1 11 ? * 1 *)
+      - schedule: cron(0 11 ? * 4 *)

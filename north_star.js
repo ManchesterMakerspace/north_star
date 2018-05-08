@@ -60,7 +60,7 @@ var compile = {
                 // slack.send(member.name + ': ' + member.checkins);
             }
         });
-        slack.send('We had ' + activeMembers + ' members actively using the makerspace the past month');
+        slack.send('We have had ' + activeMembers + ' members actively using the makerspace the past month');
     }
 };
 
