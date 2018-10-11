@@ -41,6 +41,7 @@ var compile = {
     records: [],
     ignoreList: ['Landlords Fob', "Landlord's Fob 2"], // Not a great way to this but its more space efficient than alternitives
     week: 0,
+    startReportMillis: 0,
     startTime: 0,
     checkins: function(record){                                          // copiles records into compile.records
         for(var ignore=0; ignore<compile.ignoreList.length; ignore++){   // e.g. landlord activity is redundant
@@ -116,15 +117,24 @@ var compile = {
         for(var ignore=0; ignore<compile.ignoreList.length; ignore++){ // e.g. landlord activity is redundant
             if(fullname === compile.ignoreList[ignore]){return;}       // ignores non member records
         }
-        for(var i=0; i<compile.records.length; i++){                     // check if we have a local record in memory to update
-            if(compile.records[i].name === fullname){                    // if this matches an existing check-in
-                if(record.groupName){compile.records[i].paying = false;} // make a note of paying members
-                compile.records[i].goodStanding = true;                  // not that this member is in good standing to later figure active members in good standing
-                return;                                                  // break stream action on finding a positive result
+        for(var i=0; i<compile.records.length; i++){                   // check if we have a local record in memory to update
+            if(compile.records[i].name === fullname){                  // if this matches an existing check-in
+                if(record.groupName){                                  // make a note of paying members
+                    compile.records[i].paying = false;
+                    compile.records[i].goodStanding = true;            // NOTE think about this if a group expires
+                } else if(record.expirationTime > compile.startReportMillis){
+                    compile.records[i].goodStanding = true;            // not that this member is in good standing to later figure active members in good standing
+                }
+                return;                                                // break stream action on finding a positive result
             }
         }
-        if(record.groupName){console.log('0 checkin(s): ' + fullname + '(' + record.groupName + ')');}
-        else                {console.log('0 checkin(s): ' + fullname);}
+        // This need to occur after potential return cases above
+        if(record.expirationTime > compile.startReportMillis){
+            if(record.groupName){console.log('0 checkin(s): ' + fullname + '(' + record.groupName + ')');}
+            else                {console.log('0 checkin(s): ' + fullname);}
+        } else {
+            console.log('0 checkin(s): ' + fullname + ' # EXPIRED # ');
+        }
     },
     fullReport: function(){
         var VERY_ACTIVE_QUALIFIER = 4;
@@ -173,14 +183,15 @@ var check = {
             check.stream(db.collection('checkins').aggregate([
                 { $match: {time: {$gt: period} } },
                 { $sort : { time: 1 } }
-            ]), db, compile.checkins, check.membership); // pass cursor from query and db objects to start a stream
+            ]), db, compile.checkins, check.membership(period)); // pass cursor from query and db objects to start a stream
         }, check.error);
     },
-    membership: function(){
-        mongo.connectAndDo(function whenConnected(db){
-            var currentTime = new Date().getTime();
-            check.stream(db.collection('members').find({'expirationTime': {$gt: currentTime}}), db, compile.membership, compile.fullReport);
-        }, check.error);
+    membership: function(period){
+        return function(){
+            mongo.connectAndDo(function whenConnected(db){
+                check.stream(db.collection('members').find({'expirationTime': {$gt: period}}), db, compile.membership, compile.fullReport);
+            }, check.error);
+        };
     },
     stream: function(cursor, db, streamAction, onComplete){
         process.nextTick(function onNextTick(){
@@ -206,6 +217,7 @@ function startup(event, context){
     var kpiChannel = event && event.KPI_CHANNEL ? event.KPI_CHANNEL : process.env.KPI_CHANNEL; // if lambda passes something use it
     slack.init(process.env.SLACK_WEBHOOK_URL, kpiChannel);
     var date = new Date();
+    compile.startReportMillis = date.getTime();
     console.log('Check in records for the last ' + PERIOD);
     var currentMonth = date.getMonth();
     date.setMonth(currentMonth - 1);
