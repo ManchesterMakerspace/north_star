@@ -3,7 +3,7 @@
 var ONE_DAY     = 86400000;
 var WEEK_MILLIS = 604800000;
 var THIRTY_DAYS = ONE_DAY * 30;
-var MEMBER_ACTIVITY_GOAL = 3; // corilates to minimal number of checkin in a month needed to constitute as an actively using the space
+var MEMBER_ACTIVITY_GOAL = 5; // corilates to minimal number of checkin in a month needed to constitute as an actively using the space
 var MONTH_MULTIPLE = 6;
 var PERIOD = MONTH_MULTIPLE + ' month(s)';
 
@@ -64,11 +64,12 @@ var compile = {
             else                {compile.creatMsg('0 checkin(s): ' + fullname);}
         }
     },
-    fullReport: function(onFinish){
+    fullReport: function(onFinish, threshholdOverride){
         return function(){
+            var threshhold = threshholdOverride ? threshholdOverride : MEMBER_ACTIVITY_GOAL; // default to member activity goal given no option
             compile.records.forEach(function(member){
                 if(member.goodStanding && !member.group){
-                    if (member.checkins < 5) {compile.creatMsg(member.checkins + ' checkin(s): ' + member.name);}
+                    if (member.checkins < threshhold) {compile.creatMsg(member.checkins + ' checkin(s): ' + member.name);}
                 }
             });
             onFinish(compile.msg); // Run reporting function as a response to an api call, cli invocation, test, or cron
@@ -126,7 +127,16 @@ var app = {
     lambda: function(event, context, callback){
         var body = querystring.parse(event.body);   // parse urlencoded body
         if(varify.request(event)){
-            app.check(app.response(callback));
+            app.check(app.response);
+            var response = {
+                statusCode: 200,
+                headers: {'Content-type': 'application/json'},   // content type for richer responses beyound just text
+                body: JSON.stringify({
+                    'response_type' : 'in_channel', // 'ephemeral' or 'in_channel'
+                    'text' : 'Compiling members that checked in less than ' + MEMBER_ACTIVITY_GOAL + ' times in ' + MONTH_MULTIPLE + ' months.'
+                })
+            };
+            callback(null, response);
         }
     },
     check: function(onFinish){
@@ -136,19 +146,15 @@ var app = {
         date.setMonth(currentMonth - MONTH_MULTIPLE);
         check.activity(date.getTime(), onFinish);
     },
-    response: function(postCallback){
-        return function onComplete(msg){
-            // {statusCode: 403}; // this status code should probably be set when things go wrong
-            var response = {
-                statusCode: 200,
-                headers: {'Content-type': 'application/json'},   // content type for richer responses beyound just text
-                body: JSON.stringify({
-                    'response_type' : 'in_channel', // 'ephemeral' or 'in_channel'
-                    'text' : '```' + msg + '```'
-                })
-            };
-            postCallback(null, response);
+    response: function(msg){
+        var options = {
+            uri: process.env.WEBHOOK_URL_MEMBERS_RELATIONS,
+            method: 'POST',
+            json: {'text': msg}
         };
+        request(options, function requestResponse(error, response, body){
+            if(error){console.log('webhook request error ' + error);}
+        });
     }
 };
 
