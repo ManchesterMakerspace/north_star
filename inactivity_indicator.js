@@ -71,7 +71,7 @@ var compile = {
                     if (member.checkins < 5) {compile.creatMsg(member.checkins + ' checkin(s): ' + member.name);}
                 }
             });
-            onFinish(); // Run reporting function as a response to an api call, cli invocation, test, or cron
+            onFinish(compile.msg); // Run reporting function as a response to an api call, cli invocation, test, or cron
         };
     }
 };
@@ -144,7 +144,7 @@ var app = {
                 headers: {'Content-type': 'application/json'},   // content type for richer responses beyound just text
                 body: JSON.stringify({
                     'response_type' : 'in_channel', // 'ephemeral' or 'in_channel'
-                    'text' : msg
+                    'text' : '```' + msg + '```'
                 })
             };
             postCallback(null, response);
@@ -153,4 +153,4 @@ var app = {
 };
 
 if(process.env.LAMBDA === 'true'){exports.start = app.lambda;}
-else {app.check(function(){console.log(compile.msg);});}
+else {app.check(function(msg){console.log(msg);});}
