@@ -7,27 +7,6 @@ var MEMBER_ACTIVITY_GOAL = 3; // corilates to minimal number of checkin in a mon
 var MONTH_MULTIPLE = 6;
 var PERIOD = MONTH_MULTIPLE + ' month(s)';
 
-var slack = {
-    webhook: require('@slack/client').IncomingWebhook,   // url to slack intergration called "webhook" can post to any channel as a "bot"
-    init: function(webhook, kpiChannel){
-        slack.kpiChannel = {
-            username: 'Member Activity Bot',
-            channel: kpiChannel,
-            iconEmoji: ':star:'
-        };
-        slack.URL = webhook;
-    },
-    send: function(msg){
-        if(slack.URL){
-            var sendObj = {};
-            sendObj = new slack.webhook(slack.URL, slack.kpiChannel);
-            sendObj.send(msg);
-        } else {              // given no url was passed in init phase log to stdout
-            console.log(msg); // log messages if no webhook was given
-        }
-    }
-};
-
 var mongo = {
     client: require('mongodb').MongoClient,
     connectAndDo: function(connected, failed){         // url to db and what well call this db in case we want multiple
