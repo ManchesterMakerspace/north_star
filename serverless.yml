@@ -9,3 +9,9 @@ functions:
         handler: north_star.start
         events:
             - schedule: cron(0 11 ? * 4 *)
+    inactivity_indicator:
+        handler: inactivity_indicator.start
+        events:
+            - http:
+                path: inactive
+                method: POST

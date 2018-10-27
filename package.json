@@ -21,6 +21,7 @@
   "private": true,
   "dependencies": {
     "@slack/client": "^4.2.0",
-    "mongodb": "^2.2.33"
+    "mongodb": "^2.2.33",
+    "request": "^2.88.0"
   }
 }
