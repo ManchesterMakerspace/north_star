@@ -1,6 +1,6 @@
 {
   "name": "north_star",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Reports on member activity in the space based on check ins",
   "main": "northStar.js",
   "scripts": {
