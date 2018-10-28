@@ -128,7 +128,6 @@ var app = {
         // var body = querystring.parse(event.body);   // parse urlencoded body
         var response = {status: 403};
         if(varify.request(event)){
-            app.check(app.response);
             response = {
                 statusCode: 200,
                 headers: {'Content-type': 'application/json'},   // content type for richer responses beyound just text
@@ -137,8 +136,9 @@ var app = {
                     'text' : 'Compiling members that checked in less than ' + MEMBER_ACTIVITY_GOAL + ' times in ' + MONTH_MULTIPLE + ' months.'
                 })
             };
-        }
-        callback(null, response);
+            callback(null, response);
+            app.check(app.response);
+        } else { callback(null, response); }
     },
     check: function(onFinish){
         var date = new Date();
@@ -151,7 +151,7 @@ var app = {
         var options = {
             uri: process.env.WEBHOOK_URL_MEMBERS_RELATIONS,
             method: 'POST',
-            json: {'text': msg}
+            json: {'text': '```' + msg + '```'}
         };
         request(options, function requestResponse(error, response, body){
             if(error){console.log('webhook request error ' + error);}
