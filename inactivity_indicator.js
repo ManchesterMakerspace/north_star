@@ -125,19 +125,20 @@ var varify = {
 
 var app = {
     lambda: function(event, context, callback){
-        var body = querystring.parse(event.body);   // parse urlencoded body
+        // var body = querystring.parse(event.body);   // parse urlencoded body
+        var response = {status: 403};
         if(varify.request(event)){
             app.check(app.response);
-            var response = {
+            response = {
                 statusCode: 200,
                 headers: {'Content-type': 'application/json'},   // content type for richer responses beyound just text
                 body: JSON.stringify({
-                    'response_type' : 'in_channel', // 'ephemeral' or 'in_channel'
+                    'response_type' : 'ephemeral', // 'ephemeral' or 'in_channel'
                     'text' : 'Compiling members that checked in less than ' + MEMBER_ACTIVITY_GOAL + ' times in ' + MONTH_MULTIPLE + ' months.'
                 })
             };
-            callback(null, response);
         }
+        callback(null, response);
     },
     check: function(onFinish){
         var date = new Date();
