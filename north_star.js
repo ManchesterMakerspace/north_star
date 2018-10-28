@@ -3,24 +3,18 @@
 var ONE_DAY = 86400000;
 var MEMBER_ACTIVITY_GOAL = 3; // corilates to minimal number of checkin in a month needed to constitute as an actively using the space
 
+var request = require('request');
+
 var slack = {
-    webhook: require('@slack/client').IncomingWebhook,   // url to slack intergration called "webhook" can post to any channel as a "bot"
-    init: function(webhook, kpiChannel){
-        slack.kpiChannel = {
-            username: 'Member Activity Bot',
-            channel: kpiChannel,
-            iconEmoji: ':star:'
-        };
-        slack.URL = webhook;
-    },
     send: function(msg){
-        if(slack.URL){
-            var sendObj = {};
-            sendObj = new slack.webhook(slack.URL, slack.kpiChannel);
-            sendObj.send(msg);
-        } else {              // given no url was passed in init phase log to stdout
-            console.log(msg); // log messages if no webhook was given
-        }
+        var options = {
+            uri: process.env.WEBHOOK_MEMBERSHIP,
+            method: 'POST',
+            json: {'text': msg}
+        };
+        request(options, function requestResponse(error, response, body){
+            if(error){console.log('webhook request error ' + error);}
+        });
     }
 };
 
@@ -65,7 +59,7 @@ var compile = {
 };
 
 var check = {
-    past: function(period){
+    activity: function(period){
         mongo.connectAndDo(function onconnect(db){
             check.stream(db.collection('checkins').aggregate([
                 { $match: {time: {$gt: period} } },
@@ -97,12 +91,10 @@ var check = {
 };
 
 function startup(event, context){
-    var kpiChannel = event && event.KPI_CHANNEL ? event.KPI_CHANNEL : process.env.KPI_CHANNEL; // if lambda passes something use it
-    slack.init(process.env.SLACK_WEBHOOK_URL, kpiChannel);
     var date = new Date();
     var currentMonth = date.getMonth();
     date.setMonth(currentMonth - 1);
-    check.past(date.getTime());
+    check.activity(date.getTime());
 }
 
 if(process.env.LAMBDA === 'true'){exports.start = startup;}
