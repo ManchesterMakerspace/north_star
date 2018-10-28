@@ -125,7 +125,7 @@ var varify = {
 
 var app = {
     lambda: function(event, context, callback){
-        var body = querystring.parse(event.body);    // parse urlencoded body
+        // var body = querystring.parse(event.body);    // parse urlencoded body
         var response = {status: 403};                // default response, unauthorized
         if(varify.request(event)){
             response = {
@@ -159,8 +159,5 @@ var app = {
     }
 };
 
-// if(process.env.LAMBDA === 'true'){exports.start = app.lambda;}
-// else {app.check(function(msg){console.log(msg);});}
-
-module.exports.start = app.lambda;
-app.check(function(msg){console.log(msg);});
+if(process.env.LAMBDA === 'true'){exports.start = app.lambda;}
+else {app.check(function(msg){console.log(msg);});}
