@@ -125,14 +125,14 @@ var varify = {
 
 var app = {
     lambda: function(event, context, callback){
-        // var body = querystring.parse(event.body);   // parse urlencoded body
-        var response = {status: 403};
+        var body = querystring.parse(event.body);    // parse urlencoded body
+        var response = {status: 403};                // default response, unauthorized
         if(varify.request(event)){
             response = {
                 statusCode: 200,
                 headers: {'Content-type': 'application/json'},   // content type for richer responses beyound just text
                 body: JSON.stringify({
-                    'response_type' : 'ephemeral', // 'ephemeral' or 'in_channel'
+                    'response_type' : 'in_channel', // 'ephemeral' or 'in_channel'
                     'text' : 'Compiling members that checked in less than ' + MEMBER_ACTIVITY_GOAL + ' times in ' + MONTH_MULTIPLE + ' months.'
                 })
             };
@@ -159,5 +159,8 @@ var app = {
     }
 };
 
-if(process.env.LAMBDA === 'true'){exports.start = app.lambda;}
-else {app.check(function(msg){console.log(msg);});}
+// if(process.env.LAMBDA === 'true'){exports.start = app.lambda;}
+// else {app.check(function(msg){console.log(msg);});}
+
+module.exports.start = app.lambda;
+app.check(function(msg){console.log(msg);});
