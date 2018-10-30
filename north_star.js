@@ -1,9 +1,11 @@
 // north_star.js ~ Copyright 2018 Manchester Makerspace ~ License MIT
 // millisecond conversions
 var ONE_DAY = 86400000;
-var MEMBER_ACTIVITY_GOAL = 3; // corilates to minimal number of checkin in a month needed to constitute as an actively using the space
+var MEMBER_ACTIVITY_GOAL = 3;              // minimal number of checkin ins needed to count as active
 
-var request = require('request');
+var request = require('request');          // make http post request and the like
+var crypto = require('crypto');            // verify request from slack is from slack with hmac-256
+var querystring = require('querystring');  // Parse urlencoded body
 
 var slack = {
     send: function(msg){
@@ -46,42 +48,36 @@ var compile = {
         }
         compile.records.push({name: record.name, checkins:1, lastTime: record.time}); // given this is a new record
     },
-    dCount: function(){
-        var activeMembers = 0;
-        compile.records.forEach(function(member){ // for every member that excedes member activity goal increment active member count
-            if(member.checkins >= MEMBER_ACTIVITY_GOAL){
-                activeMembers++;
-                // slack.send(member.name + ': ' + member.checkins);
-            }
-        });
-        slack.send('We have had ' + activeMembers + ' members actively using the makerspace the past month');
+    finalCount: function(onFinish){
+        return function(){
+            var activeMembers = 0;
+            compile.records.forEach(function(member){ // for every member that excedes member activity goal increment active member count
+                if(member.checkins >= MEMBER_ACTIVITY_GOAL){activeMembers++;}
+            });
+            onFinish('We have had ' + activeMembers + ' members actively using the makerspace the past month');
+        };
     }
 };
 
 var check = {
-    activity: function(period){
+    activity: function(period, onFinish){
         mongo.connectAndDo(function onconnect(db){
             check.stream(db.collection('checkins').aggregate([
                 { $match: {time: {$gt: period} } },
                 { $sort : { time: 1 } }
-            ]), db); // pass cursor from query and db objects to start a stream
-        }, function onError(error){                                          // doubt this will happen but Murphy
-            slack.send('could not connect to database for whatever reason, see logs');
-            console.log('connect error ' + error);
-        });
+            ]), db, onFinish);       // pass cursor from query and db objects to start a stream
+        }, function onError(error){console.log('connect error ' + error);});
     },
-    stream: function(cursor, db){
+    stream: function(cursor, db, onFinish){
         process.nextTick(function onNextTick(){
             cursor.nextObject(function onMember(error, record){
                 if(record){
                     compile.checkins(record);
                     check.stream(cursor, db);  // recursively move through all members in collection
                 } else {
-                    if(error){
-                        slack.send('Error checking database, see logs');
-                        console.log('on check: ' + error);
-                    } else {        // given we have got to end of stream, list currently active members
-                        setTimeout(compile.dCount, 4000);
+                    if(error){ onsole.log('on check: ' + error);}
+                    else {          // given we have got to end of stream, list currently active members
+                        setTimeout(compile.finalCount(onFinish), 400);
                         db.close(); // close connection with database
                     }
                 }
@@ -90,12 +86,52 @@ var check = {
     }
 };
 
-function startup(event, context){
-    var date = new Date();
-    var currentMonth = date.getMonth();
-    date.setMonth(currentMonth - 1);
-    check.activity(date.getTime());
-}
+var varify = {
+    slack_sign_secret: process.env.SLACK_SIGNING_SECRET,
+    request: function(event){
+        var timestamp = event.headers['X-Slack-Request-Timestamp'];        // nonce from slack to have an idea
+        var secondsFromEpoch = Math.round(new Date().getTime() / 1000);    // get current seconds from epoch because thats what we are comparing with
+        if(Math.abs(secondsFromEpoch - timestamp > 60 * 5)){return false;} // make sure request isn't a duplicate
+        var computedSig = 'v0=' + crypto.createHmac('sha256', varify.slack_sign_secret).update('v0:' + timestamp + ':' + event.body).digest('hex');
+        return crypto.timingSafeEqual(Buffer.from(event.headers['X-Slack-Signature'], 'utf8'), Buffer.from(computedSig ,'utf8'));
+    }
+};
 
-if(process.env.LAMBDA === 'true'){exports.start = startup;}
-else {startup();}
+var app = {
+    oneTime: function(event, context){
+        app.run(function onFinish(msg){
+            slack.send(msg);
+        });
+    },
+    api: function(event, context, callback){
+        var response = {
+            statusCode:403,
+            headers: {'Content-type': 'application/json'}
+        };
+        app.run(function onFinish(msg){        // start db request before varification for speed
+            respose.body = JSON.stringify({
+                'response_type' : 'ephemeral', // 'in_channel' or 'ephemeral'
+                'text' : msg
+            });
+            callback(null, response);
+        });
+        if(varify.request(event)){
+            response.statusCode = 200;
+        } else {
+            console.log('failed to varify signature :' + JSON.stringify(event, null, 4));
+            callback(null, response);
+            process.exit(0); // this may cause unneeded database connections to remain open...
+        }
+    },
+    run: function(onFinish){
+        var date = new Date();
+        var currentMonth = date.getMonth();
+        date.setMonth(currentMonth - 1);
+        check.activity(date.getTime(), onFinish);
+    }
+};
+
+if(process.env.LAMBDA === 'true'){
+    module.exports.cron = app.oneTime;
+    module.exports.api = app.api;
+} else {startup();}

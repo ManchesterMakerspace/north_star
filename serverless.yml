@@ -5,10 +5,16 @@ provider:
     runtime: nodejs8.10
 
 functions:
-    northstar:
-        handler: north_star.start
+    northstarcron:
+        handler: north_star.cron
         events:
             - schedule: cron(0 11 ? * 4 *)
+    northstarapi:
+        handler: north_star.api
+        events:
+            - http:
+                path: northstar
+                method: POST
     inactivity_indicator:
         handler: inactivity_indicator.start
         events:
