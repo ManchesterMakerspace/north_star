@@ -3,9 +3,10 @@
 var ONE_DAY     = 86400000;
 var WEEK_MILLIS = 604800000;
 var THIRTY_DAYS = ONE_DAY * 30;
-var MEMBER_ACTIVITY_GOAL = 5; // corilates to minimal number of checkin in a month needed to constitute as an actively using the space
+var MEMBER_ACTIVITY_GOAL = 5;              // minimal number of checkin in a month needed to count as active
 var MONTH_MULTIPLE = 6;
 var PERIOD = MONTH_MULTIPLE + ' month(s)';
+var STREAM_FINALIZATION_OFFSET = 200;      // time to take last action after final doc request in stream
 
 var crypto = require('crypto');                      // verify request from slack is from slack with hmac-256
 var querystring = require('querystring');            // Parse urlencoded body
@@ -102,8 +103,8 @@ var check = {
                     check.stream(cursor, db, streamAction, onComplete);  // recursively move through all members in collection
                 } else {
                     if(error){ console.log('on check: ' + error);
-                    } else {                                             // given we have got to end of stream, list currently active members
-                        setTimeout(function(){onComplete();}, 2000);     // stream should take care of this in look at drop offs and take ups
+                    } else {                                                               // given we have got to end of stream, list currently active members
+                        setTimeout(function(){onComplete();}, STREAM_FINALIZATION_OFFSET); // stream should take care of this in look at drop offs and take ups
                         db.close();
                     }
                 }
