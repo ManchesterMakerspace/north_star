@@ -2,6 +2,7 @@
 // millisecond conversions
 var ONE_DAY = 86400000;
 var MEMBER_ACTIVITY_GOAL = 3;              // minimal number of checkin ins needed to count as active
+var STREAM_FINALIZATION_OFFSET = 400;      // time to take last action after final doc request in stream
 
 var request = require('request');          // make http post request and the like
 var crypto = require('crypto');            // verify request from slack is from slack with hmac-256
@@ -77,7 +78,7 @@ var check = {
                 } else {
                     if(error){ onsole.log('on check: ' + error);}
                     else {          // given we have got to end of stream, list currently active members
-                        setTimeout(compile.finalCount(onFinish), 400);
+                        setTimeout(compile.finalCount(onFinish), STREAM_FINALIZATION_OFFSET);
                         db.close(); // close connection with database
                     }
                 }
@@ -108,19 +109,18 @@ var app = {
             statusCode:403,
             headers: {'Content-type': 'application/json'}
         };
-        app.run(function onFinish(msg){        // start db request before varification for speed
-            respose.body = JSON.stringify({
-                'response_type' : 'ephemeral', // 'in_channel' or 'ephemeral'
-                'text' : msg
-            });
-            callback(null, response);
-        });
         if(varify.request(event)){
-            response.statusCode = 200;
+            app.run(function onFinish(msg){        // start db request before varification for speed
+                response.statusCode = 200;
+                respose.body = JSON.stringify({
+                    'response_type' : 'ephemeral', // 'in_channel' or 'ephemeral'
+                    'text' : msg
+                });
+                callback(null, response);
+            });
         } else {
             console.log('failed to varify signature :' + JSON.stringify(event, null, 4));
             callback(null, response);
-            process.exit(0); // this may cause unneeded database connections to remain open...
         }
     },
     run: function(onFinish){
