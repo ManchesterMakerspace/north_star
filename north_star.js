@@ -6,7 +6,6 @@ var STREAM_FINALIZATION_OFFSET = 400;      // time to take last action after fin
 
 var request = require('request');          // make http post request and the like
 var crypto = require('crypto');            // verify request from slack is from slack with hmac-256
-var querystring = require('querystring');  // Parse urlencoded body
 
 var slack = {
     send: function(msg){
@@ -109,15 +108,15 @@ var app = {
             statusCode:403,
             headers: {'Content-type': 'application/json'}
         };
-        if(varify.request(event)){
-            app.run(function onFinish(msg){        // start db request before varification for speed
-                response.statusCode = 200;
-                respose.body = JSON.stringify({
-                    'response_type' : 'ephemeral', // 'in_channel' or 'ephemeral'
-                    'text' : msg
-                });
-                callback(null, response);
+        app.run(function onFinish(msg){        // start db request before varification for speed
+            response.body = JSON.stringify({
+                'response_type' : 'ephemeral', // 'in_channel' or 'ephemeral'
+                'text' : msg
             });
+            callback(null, response);
+        });
+        if(varify.request(event)){
+            response.statusCode = 200;
         } else {
             console.log('failed to varify signature :' + JSON.stringify(event, null, 4));
             callback(null, response);
