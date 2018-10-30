@@ -73,7 +73,7 @@ var check = {
             cursor.nextObject(function onMember(error, record){
                 if(record){
                     compile.checkins(record);
-                    check.stream(cursor, db);  // recursively move through all members in collection
+                    check.stream(cursor, db, onFinish);  // recursively move through all members in collection
                 } else {
                     if(error){ onsole.log('on check: ' + error);}
                     else {          // given we have got to end of stream, list currently active members
