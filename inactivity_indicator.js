@@ -130,13 +130,12 @@ var app = {
         if(varify.request(event)){
             response.statusCode = 200;
             if(body.channel_id === process.env.PRIVATE_VIEW_CHANNEL || body.user_name === process.env.ADMIN){
-                console.log('got to check step');
                 app.check(function onFinish(msg){
                     response.body = JSON.stringify({
                         'response_type' : 'in_channel', // 'ephemeral' or 'in_channel'
                         'text' : 'Members that checked in less than ' + MEMBER_ACTIVITY_GOAL + ' times in ' + MONTH_MULTIPLE + ' months. \n ```' + msg + '```'
                     });
-                    console.log('about to respond');
+                    app.response(msg);
                     callback(null, response);
                 });
             } else {
