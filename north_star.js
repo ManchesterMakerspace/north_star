@@ -5,6 +5,7 @@ var MEMBER_ACTIVITY_GOAL = 3;              // minimal number of checkin ins need
 var STREAM_FINALIZATION_OFFSET = 100;      // time to take last action after final doc request in stream
 
 var request = require('request');          // make http post request and the like
+var querystring = require('querystring');  // Parse urlencoded body
 var crypto = require('crypto');            // verify request from slack is from slack with hmac-256
 
 var slack = {
@@ -104,13 +105,14 @@ var app = {
         });
     },
     api: function(event, context, callback){
+        var body = querystring.parse(event.body);                                    // parse urlencoded body
         var response = {
             statusCode:403,
             headers: {'Content-type': 'application/json'}
         };
         app.run(function onFinish(msg){        // start db request before varification for speed
             response.body = JSON.stringify({
-                'response_type' : 'ephemeral', // 'in_channel' or 'ephemeral'
+                'response_type' : body.text === 'show' ? 'in_channel' : 'ephemeral', // 'in_channel' or 'ephemeral'
                 'text' : msg
             });
             callback(null, response);
