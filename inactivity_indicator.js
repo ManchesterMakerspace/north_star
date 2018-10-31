@@ -127,17 +127,16 @@ var app = {
     lambda: function(event, context, callback){
         var body = querystring.parse(event.body);                                    // parse urlencoded body
         var response = {status: 403, headers: {'Content-type': 'application/json'}}; // default response, unauthorized
-        console.log('channel id: ' + body.channel_id + ' | user name ' + body.user_name);
         if(varify.request(event)){
             response.statusCode = 200;
             if(body.channel_id === process.env.PRIVATE_VIEW_CHANNEL || body.user_name === process.env.ADMIN){
+                console.log('got to check step');
                 app.check(function onFinish(msg){
-                    if(response.statusCode === 200){
-                        response.body = JSON.stringify({
-                            'response_type' : 'in_channel', // 'ephemeral' or 'in_channel'
-                            'text' : 'Compiling members that checked in less than ' + MEMBER_ACTIVITY_GOAL + ' times in ' + MONTH_MULTIPLE + ' months. \n' + msg
-                        });
-                    }
+                    response.body = JSON.stringify({
+                        'response_type' : 'in_channel', // 'ephemeral' or 'in_channel'
+                        'text' : 'Members that checked in less than ' + MEMBER_ACTIVITY_GOAL + ' times in ' + MONTH_MULTIPLE + ' months. \n ```' + msg + '```'
+                    });
+                    console.log('about to respond');
                     callback(null, response);
                 });
             } else {
