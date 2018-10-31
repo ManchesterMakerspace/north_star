@@ -6,7 +6,7 @@ var THIRTY_DAYS = ONE_DAY * 30;
 var MEMBER_ACTIVITY_GOAL = 5;              // minimal number of checkin in a month needed to count as active
 var MONTH_MULTIPLE = 6;
 var PERIOD = MONTH_MULTIPLE + ' month(s)';
-var STREAM_FINALIZATION_OFFSET = 200;      // time to take last action after final doc request in stream
+var STREAM_FINALIZATION_OFFSET = 100;      // time to take last action after final doc request in stream
 
 var crypto = require('crypto');                      // verify request from slack is from slack with hmac-256
 var querystring = require('querystring');            // Parse urlencoded body
@@ -31,8 +31,7 @@ var compile = {
     checkins: function(record){                                          // copiles records into compile.records
         for(var ignore=0; ignore<compile.ignoreList.length; ignore++){   // e.g. landlord activity is redundant
             if(record.name  === compile.ignoreList[ignore]){return;}     // ignores non member records
-        }
-        // establish when a record is in next period and file a report if so and start compiling next period
+        } // establish when a record is in next period and file a report if so and start compiling next period
         for(var i=0; i<compile.records.length; i++){                     // check if we have a local record in memory to update
             if(compile.records[i].name === record.name){                 // if this matches an existing check-in
                 if(compile.records[i].lastTime + ONE_DAY < record.time){ // for this period and check-in has x seperation from last
@@ -126,19 +125,29 @@ var varify = {
 
 var app = {
     lambda: function(event, context, callback){
-        // var body = querystring.parse(event.body);    // parse urlencoded body
-        var response = {status: 403};                // default response, unauthorized
+        var body = querystring.parse(event.body);                                    // parse urlencoded body
+        var response = {status: 403, headers: {'Content-type': 'application/json'}}; // default response, unauthorized
+        console.log('channel id: ' + body.channel_id + ' | user name ' + body.user_name);
         if(varify.request(event)){
-            response = {
-                statusCode: 200,
-                headers: {'Content-type': 'application/json'},   // content type for richer responses beyound just text
-                body: JSON.stringify({
-                    'response_type' : 'in_channel', // 'ephemeral' or 'in_channel'
-                    'text' : 'Compiling members that checked in less than ' + MEMBER_ACTIVITY_GOAL + ' times in ' + MONTH_MULTIPLE + ' months.'
-                })
-            };
-            callback(null, response);
-            app.check(app.response);
+            response.statusCode = 200;
+            if(body.channel_id === process.env.PRIVATE_VIEW_CHANNEL || body.user_name === process.env.ADMIN){
+                app.check(function onFinish(msg){
+                    if(response.statusCode === 200){
+                        response.body = JSON.stringify({
+                            'response_type' : 'in_channel', // 'ephemeral' or 'in_channel'
+                            'text' : 'Compiling members that checked in less than ' + MEMBER_ACTIVITY_GOAL + ' times in ' + MONTH_MULTIPLE + ' months. \n' + msg
+                        });
+                    }
+                    callback(null, response);
+                });
+            } else {
+                console.log(body.user_name + ' is curious');
+                response.body = JSON.stringify({
+                    'response_type' : 'ephemeral', // 'ephemeral' or 'in_channel'
+                    'text' : 'This information can only be displayed in unauthorized channels',
+                });
+                callback(null, response);
+            }
         } else { callback(null, response); }
     },
     check: function(onFinish){

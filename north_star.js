@@ -2,7 +2,7 @@
 // millisecond conversions
 var ONE_DAY = 86400000;
 var MEMBER_ACTIVITY_GOAL = 3;              // minimal number of checkin ins needed to count as active
-var STREAM_FINALIZATION_OFFSET = 200;      // time to take last action after final doc request in stream
+var STREAM_FINALIZATION_OFFSET = 100;      // time to take last action after final doc request in stream
 
 var request = require('request');          // make http post request and the like
 var crypto = require('crypto');            // verify request from slack is from slack with hmac-256
