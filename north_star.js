@@ -3,6 +3,8 @@
 var ONE_DAY = 86400000;
 var MEMBER_ACTIVITY_GOAL = 3;              // minimal number of checkin ins needed to count as active
 var STREAM_FINALIZATION_OFFSET = 100;      // time to take last action after final doc request in stream
+var VERY_ACTIVE_QUALIFIER = 15;            // amount of checkins to qualify as very active
+var VERY_ACTIVE_PERIOD = 6;                // months to qualify activity over
 
 var request = require('request');          // make http post request and the like
 var querystring = require('querystring');  // Parse urlencoded body
@@ -49,14 +51,19 @@ var compile = {
         }
         compile.records.push({name: record.name, checkins:1, lastTime: record.time}); // given this is a new record
     },
-    finalCount: function(onFinish){
-        return function(){
-            var activeMembers = 0;
-            compile.records.forEach(function(member){ // for every member that excedes member activity goal increment active member count
-                if(member.checkins >= MEMBER_ACTIVITY_GOAL){activeMembers++;}
-            });
-            onFinish('We have had ' + activeMembers + ' members actively using the makerspace the past month');
-        };
+    northStarMetric: function(){ // shows total active members for period given
+        var activeMembers = 0;
+        compile.records.forEach(function(member){ // for every member that excedes member activity goal increment active member count
+            if(member.checkins >= MEMBER_ACTIVITY_GOAL){activeMembers++;}
+        });
+        return 'We have had ' + activeMembers + ' members actively using the makerspace the past month';
+    },
+    veryActiveList: function(onFinish){
+        var msg = 'Checked in more than ' + VERY_ACTIVE_QUALIFIER + ' times in ' + VERY_ACTIVE_PERIOD + ' month(s)\n ```';
+        compile.records.forEach(function(member){
+            if(member.checkins >= VERY_ACTIVE_QUALIFIER){msg += '\n' + member.name;}
+        });
+        return msg += '```';
     }
 };
 
@@ -71,14 +78,14 @@ var check = {
     },
     stream: function(cursor, db, onFinish){
         process.nextTick(function onNextTick(){
-            cursor.nextObject(function onMember(error, record){
+            cursor.nextObject(function onDoc(error, record){
                 if(record){
                     compile.checkins(record);
                     check.stream(cursor, db, onFinish);  // recursively move through all members in collection
                 } else {
-                    if(error){ onsole.log('on check: ' + error);}
+                    if(error){console.log('on check: ' + error);}
                     else {          // given we have got to end of stream, list currently active members
-                        setTimeout(compile.finalCount(onFinish), STREAM_FINALIZATION_OFFSET);
+                        setTimeout(onFinish, STREAM_FINALIZATION_OFFSET);
                         db.close(); // close connection with database
                     }
                 }
@@ -99,40 +106,45 @@ var varify = {
 };
 
 var app = {
-    oneTime: function(event, context){
-        app.run(function onFinish(msg){
-            slack.send(msg);
-        });
-    },
-    api: function(event, context, callback){
-        var body = querystring.parse(event.body);                                    // parse urlencoded body
-        var response = {
-            statusCode:403,
-            headers: {'Content-type': 'application/json'}
-        };
-        app.run(function onFinish(msg){        // start db request before varification for speed
-            response.body = JSON.stringify({
-                'response_type' : body.text === 'show' ? 'in_channel' : 'ephemeral', // 'in_channel' or 'ephemeral'
-                'text' : msg
+    oneTime: function(finalFunction, monthsDurration){
+        return function(event, context){
+            check.activity(monthsDurration, function onFinish(){
+                slack.send(finalFunction());
+                // console.log(finalFunction());
             });
-            callback(null, response);
-        });
-        if(varify.request(event)){
-            response.statusCode = 200;
-        } else {
-            console.log('failed to varify signature :' + JSON.stringify(event, null, 4));
-            callback(null, response);
-        }
+        };
     },
-    run: function(onFinish){
+    api: function(finalFunction, monthsDurration){ // pass function that runs when data is compiled, and durration of checkins
+        return function(event, context, callback){
+            var body = querystring.parse(event.body);              // parse urlencoded body
+            var response = {statusCode:403, headers: {'Content-type': 'application/json'}};
+            check.activity(monthsDurration, function onFinish(){  // start db request before varification for speed
+                var msg = finalFunction();                         // run passed compilation totalling function
+                response.body = JSON.stringify({
+                    'response_type' : body.text === 'show' ? 'in_channel' : 'ephemeral', // 'in_channel' or 'ephemeral'
+                    'text' : msg
+                });
+                callback(null, response);
+            });
+            if(varify.request(event)){ response.statusCode = 200;}
+            else {
+                console.log('failed to varify signature :' + JSON.stringify(event, null, 4));
+                callback(null, response);
+            }
+        };
+    },
+    monthsDurration: function(monthsBack){
         var date = new Date();
         var currentMonth = date.getMonth();
-        date.setMonth(currentMonth - 1);
-        check.activity(date.getTime(), onFinish);
+        date.setMonth(currentMonth - monthsBack);
+        return date.getTime();
     }
 };
 
 if(process.env.LAMBDA === 'true'){
-    module.exports.cron = app.oneTime;
-    module.exports.api = app.api;
-} else {startup();}
+    module.exports.northstarCron = app.oneTime(compile.northStarMetric, app.monthsDurration(1));
+    module.exports.northstarApi = app.api(compile.northStarMetric, app.monthsDurration(1));
+    module.exports.activeApi = app.api(compile.veryActiveList, app.monthsDurration(VERY_ACTIVE_PERIOD));
+} else {
+    app.oneTime(compile.northStarMetric, app.monthsDurration(3))();
+}

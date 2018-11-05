@@ -6,14 +6,20 @@ provider:
 
 functions:
     northstarcron:
-        handler: north_star.cron
+        handler: north_star.northstarCron
         events:
             - schedule: cron(0 11 ? * 4 *)
     northstarapi:
-        handler: north_star.api
+        handler: north_star.northstarApi
         events:
             - http:
                 path: northstar
+                method: POST
+    activitylist:
+        handler: north_star.activeApi
+        events:
+            - http:
+                path: activitylist
                 method: POST
     inactivity_indicator:
         handler: inactivity_indicator.start
