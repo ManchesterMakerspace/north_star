@@ -155,9 +155,9 @@ var varify = {
 };
 
 var app = {
-    oneTime: function(finalFunction, stream, streamStart, monthsDurration, private){
+    oneTime: function(finalFunction, streamStart, monthsDurration, private){
         return function(event, context){
-            streamStart(monthsDurration, stream, function onFinish(){
+            streamStart(monthsDurration, compile.checkins, function onFinish(){
                 //slack.send(finalFunction());
                 console.log(finalFunction());
             });
@@ -173,13 +173,13 @@ var app = {
             }
         } else {return true;}
     },
-    api: function(finalFunction, stream, streamStart, monthsDurration, private){ // pass function that runs when data is compiled, and durration of checkins
+    api: function(finalFunction, streamStart, monthsDurration, private){ // pass function that runs when data is compiled, and durration of checkins
         return function(event, context, callback){
             var body = querystring.parse(event.body);              // parse urlencoded body
             var response = {statusCode:403, headers: {'Content-type': 'application/json'}};
             if(varify.request(event)){
                 if(app.private(private)){
-                    streamStart(monthsDurration, stream, function onFinish(){  // start db request before varification for speed
+                    streamStart(monthsDurration, compile.checkins, function onFinish(){  // start db request before varification for speed
                         var msg = finalFunction();                         // run passed compilation totalling function
                         response.body = JSON.stringify({
                             'response_type' : body.text === 'show' ? 'in_channel' : 'ephemeral', // 'in_channel' or 'ephemeral'
@@ -202,12 +202,12 @@ var app = {
 };
 
 if(process.env.LAMBDA === 'true'){
-    module.exports.northstarCron = app.oneTime(compile.northStarMetric, compile.checkins, check.activity, app.monthsDurration(1));
-    module.exports.northstarApi = app.api(compile.northStarMetric, compile.checkins, check.activity, app.monthsDurration(1));
-    module.exports.activeApi = app.api(compile.veryActiveList, compile.checkins, check.activity, app.monthsDurration(LONG_TERM_PERIOD));
-    module.exports.inactiveApi = app.api(compile.inactiveList, compile.checkins, check.inactivity, app.monthsDurration(LONG_TERM_PERIOD), true);
+    module.exports.northstarCron = app.oneTime(compile.northStarMetric, check.activity, app.monthsDurration(1));
+    module.exports.northstarApi = app.api(compile.northStarMetric, check.activity, app.monthsDurration(1));
+    module.exports.activeApi = app.api(compile.veryActiveList, check.activity, app.monthsDurration(LONG_TERM_PERIOD));
+    module.exports.inactiveApi = app.api(compile.inactiveList, check.inactivity, app.monthsDurration(LONG_TERM_PERIOD), true);
 } else {
-    // app.oneTime(compile.northStarMetric, compile.checkins, check.activity, app.monthsDurration(1))();
-    app.oneTime(compile.veryActiveList, compile.checkins, check.activity, app.monthsDurration(3))();
-    //app.oneTime(compile.inactiveList, compile.checkins, check.inactivity, app.monthsDurration(LONG_TERM_PERIOD), true)();
+    app.oneTime(compile.northStarMetric, check.activity, app.monthsDurration(1))();
+    app.oneTime(compile.veryActiveList, check.activity, app.monthsDurration(1))();
+    app.oneTime(compile.inactiveList, check.inactivity, app.monthsDurration(1), true)();
 }
