@@ -97,7 +97,7 @@ var compile = {
                 if (member.checkins < threshhold) {compile.creatMsg(member.checkins + ' checkin(s): ' + member.name);}
             }
         }); // Run reporting function as a response to an api call, cli invocation, test, or cron
-        return  'Members inactivity over ' + app.durration + ' month' + app.plural + '\n```' + compile.msg + '```';
+        return  'Inactive members over past ' + app.durration + ' month' + app.plural + '\n```' + compile.msg + '```';
     }
 };
 
