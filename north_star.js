@@ -182,7 +182,7 @@ var app = {
             var body = querystring.parse(event.body);                                            // parse urlencoded body
             var response = {statusCode:403, headers: {'Content-type': 'application/json'}};      // default case
             if(varify.request(event)){                                                           // verify signing secret
-                if(app.private(private)){                                                        // determine cases to show if private flag
+                if(app.private(private, body)){                                                  // determine cases to show if private flag
                     streamStart(monthsDurration, compile.checkins, function onFinish(){          // start db request before varification for speed
                         var msg = finalFunction();                                               // run passed compilation totalling function
                         response.body = JSON.stringify({
