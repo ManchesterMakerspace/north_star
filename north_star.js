@@ -207,10 +207,10 @@ var app = {
 };
 
 if(process.env.LAMBDA === 'true'){
-    module.exports.northstarCron = app.oneTime(compile.northStarMetric, check.activity, app.monthsDurration(1));
-    module.exports.northstarApi = app.api(compile.northStarMetric, check.activity, app.monthsDurration(1));
-    module.exports.activeApi = app.api(compile.veryActiveList, check.activity, app.monthsDurration());
-    module.exports.inactiveApi = app.api(compile.inactiveList, check.inactivity, app.monthsDurration(), true);
+    exports.northstarCron = app.oneTime(compile.northStarMetric, check.activity, app.monthsDurration(1));
+    exports.northstarApi = app.api(compile.northStarMetric, check.activity, app.monthsDurration(1));
+    exports.activeApi = app.api(compile.veryActiveList, check.activity, app.monthsDurration());
+    exports.inactiveApi = app.api(compile.inactiveList, check.inactivity, app.monthsDurration(), true);
 } else {
     app.oneTime(compile.northStarMetric, check.activity, app.monthsDurration(6))();
     // app.oneTime(compile.veryActiveList, check.activity, app.monthsDurration(1))();
