@@ -60,12 +60,10 @@ var compile = {
         compile.records.forEach(function(member){ // for every member that excedes member activity goal increment active member count
             if(member.checkins >= MEMBER_ACTIVITY_GOAL){activeMembers++;}
         });
-        var plural = app.durration > 1 ? 's' : '';
-        return 'We have had ' + activeMembers + ' members actively using the makerspace the past ' + app.durration + ' month' + plural;
+        return 'We have had ' + activeMembers + ' members actively using the makerspace the past ' + app.durration + ' month' + app.plural;
     },
     veryActiveList: function(onFinish){
-        var plural = app.durration > 1 ? 's' : '';
-        var msg = 'Checked in more than ' + VERY_ACTIVE_QUALIFIER + ' times in ' + app.durration + ' month' + plural + '\n ```';
+        var msg = 'Checked in more than ' + VERY_ACTIVE_QUALIFIER + ' times in ' + app.durration + ' month' + app.plural + '\n ```';
         compile.records.forEach(function(member){
             if(member.checkins >= VERY_ACTIVE_QUALIFIER){msg += '\n' + member.name;}
         });
@@ -98,8 +96,8 @@ var compile = {
             if(member.goodStanding && !member.group){
                 if (member.checkins < threshhold) {compile.creatMsg(member.checkins + ' checkin(s): ' + member.name);}
             }
-        });
-        return compile.msg; // Run reporting function as a response to an api call, cli invocation, test, or cron
+        }); // Run reporting function as a response to an api call, cli invocation, test, or cron
+        return  'Members inactivity over ' + app.durration + ' month' + app.plural + '\n```' + compile.msg + '```';
     }
 };
 
@@ -156,12 +154,14 @@ var varify = {
 };
 
 var app = {
-    durration : LONG_TERM_PERIOD,
-    oneTime: function(finalFunction, streamStart, monthsDurration, private){
+    durration : 0,
+    plural: 's',
+    oneTime: function(finalFunction, streamStart, monthsBack, private){
         return function(event, context){
+            var monthsDurration = app.monthsDurration(monthsBack);
             streamStart(monthsDurration, compile.checkins, function onFinish(){
                 slack.send(finalFunction());
-                // console.log(finalFunction());
+                // console.log(finalFunction()); // for testing purposes
             });
         };
     },
@@ -175,13 +175,14 @@ var app = {
             }
         } else {return true;}
     },
-    api: function(finalFunction, streamStart, monthsDurration, private){ // pass function that runs when data is compiled, and durration of checkins
+    api: function(finalFunction, streamStart, monthsBack, private){ // pass function that runs when data is compiled, and durration of checkins
         return function(event, context, callback){
             var body = querystring.parse(event.body);                                            // parse urlencoded body
             var response = {statusCode:403, headers: {'Content-type': 'application/json'}};      // default case
             if(varify.request(event)){                                                           // verify signing secret
                 response.statusCode = 200;
                 if(app.private(private, body)){                                                  // determine cases to show if private flag
+                    var monthsDurration = app.monthsDurration(monthsBack);
                     streamStart(monthsDurration, compile.checkins, function onFinish(){          // start db request before varification for speed
                         var msg = finalFunction();                                               // run passed compilation totalling function
                         response.body = JSON.stringify({
@@ -201,7 +202,8 @@ var app = {
         };
     },
     monthsDurration: function(monthsBack){
-        app.durration = monthsBack ? monthsBack : LONG_TERM_PERIOD; // defult to LONG_TERM_PERIOD
+        app.durration = monthsBack;
+        app.plural = app.durration > 1 ? 's' : '';
         var date = new Date();
         compile.startReportMillis = date.getTime();
         var currentMonth = date.getMonth();
@@ -211,10 +213,10 @@ var app = {
 };
 
 if(process.env.LAMBDA === 'true'){
-    exports.northstarCron = app.oneTime(compile.northStarMetric, check.activity, app.monthsDurration(1));
-    exports.northstarApi = app.api(compile.northStarMetric, check.activity, app.monthsDurration(1));
-    exports.activeApi = app.api(compile.veryActiveList, check.activity, app.monthsDurration());
-    exports.inactiveApi = app.api(compile.inactiveList, check.inactivity, app.monthsDurration(), true);
+    exports.northstarCron = app.oneTime(compile.northStarMetric, check.activity, 1);
+    exports.northstarApi = app.api(compile.northStarMetric, check.activity, 1);
+    exports.activeApi = app.api(compile.veryActiveList, check.activity, 6);
+    exports.inactiveApi = app.api(compile.inactiveList, check.inactivity, 6, true);
 } else {
     app.oneTime(compile.northStarMetric, check.activity, app.monthsDurration(5))();
     // app.oneTime(compile.veryActiveList, check.activity, app.monthsDurration(1))();
