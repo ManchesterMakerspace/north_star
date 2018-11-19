@@ -180,6 +180,7 @@ var app = {
             var body = querystring.parse(event.body);                                            // parse urlencoded body
             var response = {statusCode:403, headers: {'Content-type': 'application/json'}};      // default case
             if(varify.request(event)){                                                           // verify signing secret
+                response.statusCode = 200;
                 if(app.private(private, body)){                                                  // determine cases to show if private flag
                     streamStart(monthsDurration, compile.checkins, function onFinish(){          // start db request before varification for speed
                         var msg = finalFunction();                                               // run passed compilation totalling function
@@ -187,11 +188,16 @@ var app = {
                             'response_type' : body.text === 'show' ? 'in_channel' : 'ephemeral', // 'in_channel' or 'ephemeral'
                             'text' : msg
                         });
+                        callback(null, response);
                     });
-                } else {response.body = JSON.stringify({'response_type': 'ephemeral', 'text': 'Only can be displayed in authorized channels'});}
-                response.statusCode = 200;
-            } else { console.log('failed to varify signature :' + JSON.stringify(event, null, 4)); }
-            callback(null, response);
+                } else {
+                    response.body = JSON.stringify({'response_type': 'ephemeral', 'text': 'Only can be displayed in authorized channels'});
+                    callback(null, response);
+                }
+            } else {
+                console.log('failed to varify signature :' + JSON.stringify(event, null, 4));
+                callback(null, response);
+            }
         };
     },
     monthsDurration: function(monthsBack){
