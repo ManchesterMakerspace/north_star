@@ -163,24 +163,24 @@ var app = {
             });
         };
     },
-    private: function(isPrivate, body){
-        if(isPrivate){
+    private: function(isPrivate, body){ // logic for deciding on wether to show information
+        if(isPrivate){                  // given privacy flag is being passed otherwise just return true to display anywhere
             if(body.channel_id === process.env.PRIVATE_VIEW_CHANNEL || body.user_name === process.env.ADMIN){
                 return true;
             } else {
-                console.log(body.user_name + ' is curious');
+                console.log(body.user_name + ' is curious'); // see who wants to help with members relations
                 return false;
             }
         } else {return true;}
     },
     api: function(finalFunction, streamStart, monthsDurration, private){ // pass function that runs when data is compiled, and durration of checkins
         return function(event, context, callback){
-            var body = querystring.parse(event.body);              // parse urlencoded body
-            var response = {statusCode:403, headers: {'Content-type': 'application/json'}};
-            if(varify.request(event)){
-                if(app.private(private)){
-                    streamStart(monthsDurration, compile.checkins, function onFinish(){  // start db request before varification for speed
-                        var msg = finalFunction();                         // run passed compilation totalling function
+            var body = querystring.parse(event.body);                                            // parse urlencoded body
+            var response = {statusCode:403, headers: {'Content-type': 'application/json'}};      // default case
+            if(varify.request(event)){                                                           // verify signing secret
+                if(app.private(private)){                                                        // determine cases to show if private flag
+                    streamStart(monthsDurration, compile.checkins, function onFinish(){          // start db request before varification for speed
+                        var msg = finalFunction();                                               // run passed compilation totalling function
                         response.body = JSON.stringify({
                             'response_type' : body.text === 'show' ? 'in_channel' : 'ephemeral', // 'in_channel' or 'ephemeral'
                             'text' : msg
