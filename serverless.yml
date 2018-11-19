@@ -22,7 +22,7 @@ functions:
                 path: activitylist
                 method: POST
     inactivity_indicator:
-        handler: inactivity_indicator.start
+        handler: north_star.inactiveApi
         events:
             - http:
                 path: inactive

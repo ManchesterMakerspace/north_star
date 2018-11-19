@@ -11,17 +11,18 @@ var LONG_TERM_PERIOD = 6;                // months to qualify activity over
 var request = require('request');          // make http post request and the like
 var querystring = require('querystring');  // Parse urlencoded body
 var crypto = require('crypto');            // verify request from slack is from slack with hmac-256
-
+var https = require('https');
 var slack = {
-    send: function(msg){
+    send: function(msg, useMetric){
+        var postData = JSON.stringify({'text': msg});
         var options = {
-            uri: process.env.WEBHOOK_MEMBERSHIP,
-            method: 'POST',
-            json: {'text': msg}
+            hostname: 'hooks.slack.com', port: 443, method: 'POST',
+            path: process.env.WEBHOOK_MEMBERSHIP,
+            headers: {'Content-Type': "application/json",'Content-Length': postData.length}
         };
-        request(options, function requestResponse(error, response, body){
-            if(error){console.log('webhook request error ' + error);}
-        });
+        var req = https.request(options, function(res){}); // just do it, no need for response
+        req.on('error', function(error){console.log(error);});
+        req.write(postData); req.end();
     }
 };
 
@@ -64,7 +65,8 @@ var compile = {
         return 'We have had ' + activeMembers + ' members actively using the makerspace the past month';
     },
     veryActiveList: function(onFinish){
-        var msg = 'Checked in more than ' + VERY_ACTIVE_QUALIFIER + ' times in ' + LONG_TERM_PERIOD + ' month(s)\n ```';
+        var plural = app.durration > 1 ? 's' : '';
+        var msg = 'Checked in more than ' + VERY_ACTIVE_QUALIFIER + ' times in ' + app.durration + ' month' + plural + '\n ```';
         compile.records.forEach(function(member){
             if(member.checkins >= VERY_ACTIVE_QUALIFIER){msg += '\n' + member.name;}
         });
@@ -155,11 +157,12 @@ var varify = {
 };
 
 var app = {
+    durration : LONG_TERM_PERIOD,
     oneTime: function(finalFunction, streamStart, monthsDurration, private){
         return function(event, context){
             streamStart(monthsDurration, compile.checkins, function onFinish(){
-                //slack.send(finalFunction());
-                console.log(finalFunction());
+                slack.send(finalFunction());
+                // console.log(finalFunction());
             });
         };
     },
@@ -193,10 +196,11 @@ var app = {
         };
     },
     monthsDurration: function(monthsBack){
+        app.durration = monthsBack ? monthsBack : LONG_TERM_PERIOD; // defult to LONG_TERM_PERIOD
         var date = new Date();
         compile.startReportMillis = date.getTime();
         var currentMonth = date.getMonth();
-        date.setMonth(currentMonth - monthsBack);
+        date.setMonth(currentMonth - app.durration);
         return date.getTime();
     }
 };
@@ -204,10 +208,10 @@ var app = {
 if(process.env.LAMBDA === 'true'){
     module.exports.northstarCron = app.oneTime(compile.northStarMetric, check.activity, app.monthsDurration(1));
     module.exports.northstarApi = app.api(compile.northStarMetric, check.activity, app.monthsDurration(1));
-    module.exports.activeApi = app.api(compile.veryActiveList, check.activity, app.monthsDurration(LONG_TERM_PERIOD));
-    module.exports.inactiveApi = app.api(compile.inactiveList, check.inactivity, app.monthsDurration(LONG_TERM_PERIOD), true);
+    module.exports.activeApi = app.api(compile.veryActiveList, check.activity, app.monthsDurration());
+    module.exports.inactiveApi = app.api(compile.inactiveList, check.inactivity, app.monthsDurration(), true);
 } else {
-    app.oneTime(compile.northStarMetric, check.activity, app.monthsDurration(1))();
-    app.oneTime(compile.veryActiveList, check.activity, app.monthsDurration(1))();
-    app.oneTime(compile.inactiveList, check.inactivity, app.monthsDurration(1), true)();
+    // app.oneTime(compile.northStarMetric, check.activity, app.monthsDurration(1))();
+    app.oneTime(compile.veryActiveList, check.activity, app.monthsDurration(3))();
+    // app.oneTime(compile.inactiveList, check.inactivity, app.monthsDurration(1), true)();
 }
