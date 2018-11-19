@@ -2,11 +2,9 @@
   "name": "north_star",
   "version": "1.2.1",
   "description": "Reports on member activity in the space based on check ins",
-  "main": "northStar.js",
+  "main": "north_star.js",
   "scripts": {
-    "postversion": "git push",
-    "start": "northStar.js",
-    "setup": "npm install pm2 jitploy && git clone https://github.com/ManchesterMakerspace/north_star.git"
+    "postversion": "git push"
   },
   "repository": {
     "type": "git",
