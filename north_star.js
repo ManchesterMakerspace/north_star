@@ -7,8 +7,6 @@ var STREAM_FINALIZATION_OFFSET = 100;      // time to take last action after fin
 var VERY_ACTIVE_QUALIFIER = 15;            // amount of checkins to qualify as very active
 var LONG_TERM_PERIOD = 6;                // months to qualify activity over
 
-
-var request = require('request');          // make http post request and the like
 var querystring = require('querystring');  // Parse urlencoded body
 var crypto = require('crypto');            // verify request from slack is from slack with hmac-256
 var https = require('https');
@@ -212,7 +210,7 @@ if(process.env.LAMBDA === 'true'){
     exports.activeApi = app.api(compile.veryActiveList, check.activity, app.monthsDurration());
     exports.inactiveApi = app.api(compile.inactiveList, check.inactivity, app.monthsDurration(), true);
 } else {
-    app.oneTime(compile.northStarMetric, check.activity, app.monthsDurration(6))();
+    app.oneTime(compile.northStarMetric, check.activity, app.monthsDurration(5))();
     // app.oneTime(compile.veryActiveList, check.activity, app.monthsDurration(1))();
     // app.oneTime(compile.inactiveList, check.inactivity, app.monthsDurration(1), true)();
 }
