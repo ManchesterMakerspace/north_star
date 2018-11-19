@@ -62,7 +62,8 @@ var compile = {
         compile.records.forEach(function(member){ // for every member that excedes member activity goal increment active member count
             if(member.checkins >= MEMBER_ACTIVITY_GOAL){activeMembers++;}
         });
-        return 'We have had ' + activeMembers + ' members actively using the makerspace the past month';
+        var plural = app.durration > 1 ? 's' : '';
+        return 'We have had ' + activeMembers + ' members actively using the makerspace the past ' + app.durration + ' month' + plural;
     },
     veryActiveList: function(onFinish){
         var plural = app.durration > 1 ? 's' : '';
@@ -211,7 +212,7 @@ if(process.env.LAMBDA === 'true'){
     module.exports.activeApi = app.api(compile.veryActiveList, check.activity, app.monthsDurration());
     module.exports.inactiveApi = app.api(compile.inactiveList, check.inactivity, app.monthsDurration(), true);
 } else {
-    // app.oneTime(compile.northStarMetric, check.activity, app.monthsDurration(1))();
-    app.oneTime(compile.veryActiveList, check.activity, app.monthsDurration(3))();
+    app.oneTime(compile.northStarMetric, check.activity, app.monthsDurration(6))();
+    // app.oneTime(compile.veryActiveList, check.activity, app.monthsDurration(1))();
     // app.oneTime(compile.inactiveList, check.inactivity, app.monthsDurration(1), true)();
 }
