@@ -13,7 +13,7 @@ var mongo = {
 var request = require('request');
 var slack = {
     dir: [],
-    compileDir: function(){  // recursively pagenates through request untill a member is or isn't found
+    compileDir: function(onFinish){  // recursively pagenates through request untill a member is or isn't found
         var options = {
             url: 'https://slack.com/api/users.list', //' lookupByEmail',
             method: 'GET',
@@ -31,12 +31,14 @@ var slack = {
                         email: resBody.members[i].profile.email,
                         fullname: resBody.members[i].profile.real_name_normalized.toLowerCase(),
                         altname: resBody.members[i].profile.display_name_normalized.toLowerCase(),
+                        name: resBody.members[i].name,
                         id: resBody.members[i].id,
                         lastname: resBody.members[i].profile.last_name ? resBody.members[i].profile.last_name.toLowerCase() : '',
                         matched: false
                     };
                     slack.dir.push(member);
                 }
+                onFinish();
             }
         });
     }
@@ -115,7 +117,8 @@ var migrate = {
             _id: new ObjectID(),
             member_id: memberDoc._id,
             slack_email: slack_user.email,
-            slack_id: slack_user.id
+            slack_id: slack_user.id,
+            name: slack_user.name
         });
     },
     duplicateEmail: function(db){
@@ -127,19 +130,22 @@ var migrate = {
         check.stream(db.collection('members').find({slackEmail: {$exists: 1, $nin: ['']}}), db, function onDoc(doc){
             console.log(doc.slackEmail + ':' + doc.firstname + ' ' + doc.lastname);
         }, function(){console.log('done printResults');});
+    },
+    nonMatches: function(db){
+        for(var i=0; i < slack.dir.length; i++){
+            if(!slack.dir[i].matched){
+                migrate.createSlackUser(db, {_id: null}, slack.dir[i]);
+            }
+        }
     }
 };
 
-slack.compileDir();
-
-mongo.connectAndDo(function onConnect(db){
-    // migrate.duplicateEmail(db);
-    // slack.findHandle('Paul Beaudet', console.log);
-    // migrate.printResults(db);
-    migrate.updateSlackInfo(db);
-    setTimeout(function(){
-        // console.log('updated ' + migrate.updates + ' members, and failed to update ' + migrate.misses);
-        // migrate.nonMatches();
-        db.close();
-    }, 12000);
-}, console.log);
+slack.compileDir(function whenCopiled(){
+    mongo.connectAndDo(function onConnect(db){
+        migrate.updateSlackInfo(db);
+        setTimeout(function(){
+            migrate.nonMatches(db);
+            setTimeout(function(){db.close();}, 14000);
+        }, 10000);
+    }, console.log);
+});
