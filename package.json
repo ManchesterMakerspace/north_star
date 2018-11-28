@@ -18,7 +18,7 @@
   "homepage": "https://github.com/ManchesterMakerspace/north_star#readme",
   "private": true,
   "dependencies": {
-    "mongodb": "^2.2.33",
+    "mongodb": "^3.1.10",
     "request": "^2.88.0"
   }
 }

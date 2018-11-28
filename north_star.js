@@ -5,11 +5,14 @@ var MEMBER_ACTIVITY_GOAL = 3;              // minimal number of checkin ins need
 var MEMBER_ACTIVITY_THRESHHOLD = 5;        // number of checkins under to count as inactive
 var STREAM_FINALIZATION_OFFSET = 100;      // time to take last action after final doc request in stream
 var VERY_ACTIVE_QUALIFIER = 15;            // amount of checkins to qualify as very active
-var LONG_TERM_PERIOD = 6;                // months to qualify activity over
+var MONGO_URI = process.env.MONGODB_URI;   // just to shorten things up
+var DB_NAME = process.env.DB_NAME;
 
+var MongoClient = require('mongodb').MongoClient;
 var querystring = require('querystring');  // Parse urlencoded body
 var crypto = require('crypto');            // verify request from slack is from slack with hmac-256
 var https = require('https');
+
 var slack = {
     send: function(msg){
         var postData = JSON.stringify({'text': msg});
@@ -21,16 +24,6 @@ var slack = {
         var req = https.request(options, function(res){}); // just do it, no need for response
         req.on('error', function(error){console.log(error);});
         req.write(postData); req.end();
-    }
-};
-
-var mongo = {
-    client: require('mongodb').MongoClient,
-    connectAndDo: function(connected, failed){         // url to db and what well call this db in case we want multiple
-        mongo.client.connect(process.env.MONGODB_URI, function onConnect(error, db){
-            if(db){connected(db);} // passes database object so databasy things can happen
-            else  {failed(error);} // what to do when your reason for existence is a lie
-        });
     }
 };
 
@@ -149,37 +142,41 @@ var compile = {
 var check = {
     error: function(error){console.log('connect error ' + error);},
     activity: function(period, stream, onFinish){
-        mongo.connectAndDo(function onconnect(db){
-            check.stream(db.collection('checkins').aggregate([
-                { $match: {time: {$gt: period} } },
-                { $sort : { time: 1 } }
-            ]), db, stream, onFinish);       // pass cursor from query and db objects to start a stream
-        }, check.error);
+        MongoClient.connect(MONGO_URI, {useNewUrlParser: true}, function onConnect(connectError, client){
+            if(client){
+                check.stream(client.db(DB_NAME).collection('checkins').aggregate(
+                    {$match: {time: {$gt: period} } },
+                    {$sort : {time: 1 } }
+                ), client, stream, onFinish);
+            } else {check.error(connectError);}
+        });
     },
     inactivity: function(period, stream, onFinish){
         check.activity(period, stream, check.membership(period, onFinish)); // squeeze in an extra stream to get more information
     },
     membership: function(period, onFinish){
         return function(){
-            mongo.connectAndDo(function whenConnected(db){
-                check.stream(db.collection('members').find({
-                    'expirationTime': {$gt: period}
-                }), db, compile.membership, onFinish);
-            }, check.error);
+            MongoClient.connect(MONGO_URI, {useNewUrlParser: true}, function onConnect(connectError, client){
+                if(client){
+                    check.stream(client.db(DB_NAME).collection('members').find({
+                        'expirationTime': {$gt: period}
+                    }), client, compile.membership, onFinish);
+                } else {check.error(connectError);}
+            });
             return false; // signal we are still doing something
         };
     },
-    stream: function(cursor, db, stream, onFinish){
-        process.nextTick(function onNextTick(){                  // forego blocking anything with the stream
-            cursor.nextObject(function onDoc(error, record){     // when next document in the stream is ready
-                if(record){                                      // as long as stream produces records
-                    stream(record);                              // function for streaming docs into
-                    check.stream(cursor, db, stream, onFinish);  // recursively move through all members in collection
+    stream: function(cursor, client, stream, onFinish){
+        process.nextTick(function onNextTick(){                     // forego blocking anything with the stream
+            cursor.next(function onDoc(error, record){              // when next document in the stream is ready
+                if(record){                                         // as long as stream produces records
+                    stream(record);                                 // function for streaming docs into
+                    check.stream(cursor, client, stream, onFinish); // recursively move through all members in collection
                 } else {
                     if(error){console.log('on check: ' + error);}
                     else {          // given we have got to end of stream, list currently active members
                         setTimeout(onFinish, STREAM_FINALIZATION_OFFSET);
-                        db.close(); // close connection with database
+                        client.close(); // close connection with database
                     }
                 }
             });
@@ -205,8 +202,8 @@ var app = {
         return function(event, context){
             var monthsDurration = app.monthsDurration(monthsBack);
             streamStart(monthsDurration, compile.checkins, function onFinish(){
-                slack.send(finalFunction());
-                // console.log(finalFunction()); // for testing purposes
+                // slack.send(finalFunction());
+                console.log(finalFunction()); // for testing purposes
             });
         };
     },
@@ -263,8 +260,8 @@ if(process.env.LAMBDA === 'true'){
     exports.activeApi = app.api(compile.veryActiveList, check.activity, 6);
     exports.inactiveApi = app.api(compile.inactiveList, check.inactivity, 6, true);
 } else {
-    // app.oneTime(compile.northStarMetric, check.activity, app.monthsDurration(5))();
-    // app.oneTime(compile.veryActiveList, check.activity, app.monthsDurration(1))();
-    // app.oneTime(compile.inactiveList, check.inactivity, app.monthsDurration(1), true)();
-    billing.test(process.env.TEST_EMAIL);
+    // app.oneTime(compile.northStarMetric, check.activity, 5)();
+    // app.oneTime(compile.veryActiveList, check.activity, 1)();
+    app.oneTime(compile.inactiveList, check.inactivity, 2, true)();
+    // billing.test(process.env.TEST_EMAIL);
 }
