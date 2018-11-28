@@ -29,46 +29,28 @@ var slack = {
 
 var request = require('request');
 var billing = { // methodes to check billing status in slack, to see if a member gets notifications
-    data: '',
-    getUserId: function(email){
-        // var postData = encodeURI('?token='+process.env.BOT_TOKEN+'&email='+email); // console.log(postData);
+    processed: 0,
+    get: function(record, onFinish){
         var options = {
-            hostname: 'slack.com', port: 443,
-            path: '/api/users.lookupByEmail' + encodeURI('?token='+process.env.BOT_TOKEN+'&email='+email),
-            headers: {'Content-Type': 'application/x-www-form-urlencoded'} // , 'Content-Length': postData.length}
-        };
-        var req = https.get(options, function(res){
-            // console.log('statusCode:', res.statusCode);// console.log('headers:', res.headers);
-            var resData = '';
-            res.on('data', function(chunk){resData += chunk;});
-            res.on('end', function(){
-                var resBody = JSON.parse(resData);
-                console.log(resBody.user.id);
-            });
-        });
-        req.on('error', function(error){console.log('error getting user id:' + error);});
-        req.end();
-    },
-    requestUser: function(email){
-        var options = {
-            url: 'https://slack.com/api/users.list', //' lookupByEmail',
+            url: 'https://slack.com/api/team.billableInfo', //' lookupByEmail',
             method: 'GET',
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-            qs: {'token': process.env.BOT_TOKEN, limit: 5} // , 'email': email}
+            qs: {'token': process.env.BOT_TOKEN, 'user': record.slack_id} // , 'email': email}
         };
-        request(options, function(error, response, body){
+        request(options, function onResponse(error, response, body){
             if(error){console.log(error);}
             else{
-                console.log('status code:' + response.statusCode);
                 var resBody = JSON.parse(body);
-                // console.log(JSON.stringify(resBody, null, 4));
-                console.log(resBody.members[1].profile.email);
+                if(resBody.ok){
+                    var billingMsg = resBody.billable_info[record.slack_id].billing_active ? '' : ' inactive in slack, contact:' + record.email;
+                    compile.creatMsg(record.checkins + ' checkin(s): ' + record.name + billingMsg);
+                } else {console.log('failed to retrieve billable info');} // probably want a real error handler here
+            }
+            billing.processed++;
+            if(onFinish && billing.processed === compile.inactive){
+                onFinish('Inactive members over past ' + app.durration + ' month' + app.plural + '\n```' + compile.msg + '```');
             }
         });
-    },
-    test: function(email){
-        // billing.getUserId(email);
-        billing.requestUser(email);
     }
 };
 
@@ -76,6 +58,8 @@ var compile = {
     records: [],
     startReportMillis: 0,
     msg: '',
+    inactive: 0,
+    zeros: 0,
     creatMsg: function(string){compile.msg += string + '\n';},           // helper that adds new lines to compiled results
     ignoreList: ['Landlords Fob', "Landlord's Fob 2"], // Not a great way to this but its more space efficient than alternitives
     checkins: function(record){                                          // copiles records into compile.records
@@ -108,12 +92,13 @@ var compile = {
         return msg += '```';
     },
     membership: function(record){ // only members in good standing are filtered through
-        var fullname = record.firstname + ' ' + record.lastname;
         for(var ignore=0; ignore<compile.ignoreList.length; ignore++){ // e.g. landlord activity is redundant
-            if(fullname === compile.ignoreList[ignore]){return;}       // ignores non member records
+            if(record.fullname === compile.ignoreList[ignore]){return;}       // ignores non member records
         }
         for(var i=0; i<compile.records.length; i++){                   // check if we have a local record in memory to update
-            if(compile.records[i].name === fullname){                  // if this matches an existing check-in
+            if(compile.records[i].name === record.fullname){           // if this matches an existing check-in
+                compile.records[i].slack_id = record.slack.slack_id;// tack on slack ids from aggregation
+                compile.records[i].email= record.slack.slack_email; // tack email with slack from aggregation as well
                 if(record.groupName){                                  // make a note of paying members
                     compile.records[i].group = record.groupName;
                     compile.records[i].goodStanding = true;            // NOTE think about this if a group expires
@@ -124,18 +109,24 @@ var compile = {
             }
         } // This needs to occur after potential return cases above
         if(record.expirationTime > compile.startReportMillis){
-            if(record.groupName){ /*console.log('0 checkin(s): ' + fullname + '(' + record.groupName + ')');*/} // leave for potentailly following up with groups
-            else                {compile.creatMsg('0 checkin(s): ' + fullname);}
+            if(record.groupName){ /*console.log('0 checkin(s): ' + record.fullname + '(' + record.groupName + ')');*/} // leave for potentailly following up with groups
+            else                {
+                compile.zeros++;
+                billing.get({slack_id: record.slack.slack_id, email: record.slack.slack_email, name: record.fullname, checkins: 0});
+            }
         }
     },
-    inactiveList: function(){
-        var threshhold = MEMBER_ACTIVITY_THRESHHOLD; // default to member activity goal given no option
-        compile.records.forEach(function(member){
-            if(member.goodStanding && !member.group){
-                if (member.checkins < threshhold) {compile.creatMsg(member.checkins + ' checkin(s): ' + member.name);}
+    inactiveList: function(onFinish){
+        var inactive = compile.zeros;
+        for(var i =0; i < compile.records.length; i++){
+            if(compile.records[i].goodStanding && !compile.records[i].group){
+                if (compile.records[i].checkins < MEMBER_ACTIVITY_THRESHHOLD) {
+                    inactive++;
+                    billing.get(compile.records[i], onFinish);
+                }
             }
-        }); // Run reporting function as a response to an api call, cli invocation, test, or cron
-        return  'Inactive members over past ' + app.durration + ' month' + app.plural + '\n```' + compile.msg + '```';
+        } // Run reporting function as a response to an api call, cli invocation, test, or cron
+        compile.inactive = inactive;
     }
 };
 
@@ -158,9 +149,15 @@ var check = {
         return function(){
             MongoClient.connect(MONGO_URI, {useNewUrlParser: true}, function onConnect(connectError, client){
                 if(client){
-                    check.stream(client.db(DB_NAME).collection('members').find({
-                        'expirationTime': {$gt: period}
-                    }), client, compile.membership, onFinish);
+                    check.stream(client.db(DB_NAME).collection('members').aggregate([
+                        { $match: {'expirationTime': {$gt: period}} },
+                        { $lookup: { from: 'slack_users', localField: '_id', foreignField: 'member_id', as: 'slack_users'}},
+                        { $project: {
+                            fullname: {$concat: ['$firstname', ' ', '$lastname']},
+                            _id: 1, expirationTime: 1, groupName: 1,
+                            slack: {$arrayElemAt: ["$slack_users", 0]}
+                         } }
+                    ]), client, compile.membership, onFinish);
                 } else {check.error(connectError);}
             });
             return false; // signal we are still doing something
@@ -203,7 +200,8 @@ var app = {
             var monthsDurration = app.monthsDurration(monthsBack);
             streamStart(monthsDurration, compile.checkins, function onFinish(){
                 // slack.send(finalFunction());
-                console.log(finalFunction()); // for testing purposes
+                // console.log(finalFunction()); // for testing purposes
+                finalFunction(console.log);
             });
         };
     },
@@ -262,6 +260,6 @@ if(process.env.LAMBDA === 'true'){
 } else {
     // app.oneTime(compile.northStarMetric, check.activity, 5)();
     // app.oneTime(compile.veryActiveList, check.activity, 1)();
-    app.oneTime(compile.inactiveList, check.inactivity, 2, true)();
-    // billing.test(process.env.TEST_EMAIL);
+    app.oneTime(compile.inactiveList, check.inactivity, 1, true)();
+    // billing.test({email: process.env.TEST_EMAIL, id: process.env.TEST_ID});
 }
