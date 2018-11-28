@@ -77,19 +77,19 @@ var compile = {
         }               // else given this is a new member to add to the records push a new array item
         compile.records.push({name: record.name,checkins: 1,lastTime: record.time,goodStanding: false,group: ''});
     },
-    northStarMetric: function(){ // shows total active members for period given
+    northStarMetric: function(onFinish){ // shows total active members for period given
         var activeMembers = 0;
         compile.records.forEach(function(member){ // for every member that excedes member activity goal increment active member count
             if(member.checkins >= MEMBER_ACTIVITY_GOAL){activeMembers++;}
         });
-        return 'We have had ' + activeMembers + ' members actively using the makerspace the past ' + app.durration + ' month' + app.plural;
+        onFinish('We have had ' + activeMembers + ' members actively using the makerspace the past ' + app.durration + ' month' + app.plural);
     },
     veryActiveList: function(onFinish){
         var msg = 'Checked in more than ' + VERY_ACTIVE_QUALIFIER + ' times in ' + app.durration + ' month' + app.plural + '\n ```';
         compile.records.forEach(function(member){
             if(member.checkins >= VERY_ACTIVE_QUALIFIER){msg += '\n' + member.name;}
         });
-        return msg += '```';
+        onFinish(msg += '```');
     },
     membership: function(record){ // only members in good standing are filtered through
         for(var ignore=0; ignore<compile.ignoreList.length; ignore++){ // e.g. landlord activity is redundant
@@ -224,12 +224,13 @@ var app = {
                 if(app.private(private, body)){                                                  // determine cases to show if private flag
                     var monthsDurration = app.monthsDurration(monthsBack);
                     streamStart(monthsDurration, compile.checkins, function onFinish(){          // start db request before varification for speed
-                        var msg = finalFunction();                                               // run passed compilation totalling function
-                        response.body = JSON.stringify({
-                            'response_type' : body.text === 'show' ? 'in_channel' : 'ephemeral', // 'in_channel' or 'ephemeral'
-                            'text' : msg
+                        finalFunction(function(msg){                                             // run passed compilation totalling function
+                            response.body = JSON.stringify({
+                                'response_type' : body.text === 'show' ? 'in_channel' : 'ephemeral', // 'in_channel' or 'ephemeral'
+                                'text' : msg
+                            });
+                            callback(null, response);
                         });
-                        callback(null, response);
                     });
                 } else {
                     response.body = JSON.stringify({'response_type': 'ephemeral', 'text': 'Only can be displayed in authorized channels'});
@@ -258,8 +259,8 @@ if(process.env.LAMBDA === 'true'){
     exports.activeApi = app.api(compile.veryActiveList, check.activity, 6);
     exports.inactiveApi = app.api(compile.inactiveList, check.inactivity, 6, true);
 } else {
-    // app.oneTime(compile.northStarMetric, check.activity, 5)();
-    // app.oneTime(compile.veryActiveList, check.activity, 1)();
+    // app.oneTime(compile.northStarMetric, check.activity, 6)();
+    // app.oneTime(compile.veryActiveList, check.activity, 6)();
     app.oneTime(compile.inactiveList, check.inactivity, 1, true)();
     // billing.test({email: process.env.TEST_EMAIL, id: process.env.TEST_ID});
 }
