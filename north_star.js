@@ -11,12 +11,12 @@ var querystring = require('querystring');  // Parse urlencoded body
 var crypto = require('crypto');            // verify request from slack is from slack with hmac-256
 var https = require('https');
 var slack = {
-    send: function(msg, useMetric){
+    send: function(msg){
         var postData = JSON.stringify({'text': msg});
         var options = {
             hostname: 'hooks.slack.com', port: 443, method: 'POST',
             path: process.env.WEBHOOK_MEMBERSHIP,
-            headers: {'Content-Type': "application/json",'Content-Length': postData.length}
+            headers: {'Content-Type': 'application/json','Content-Length': postData.length}
         };
         var req = https.request(options, function(res){}); // just do it, no need for response
         req.on('error', function(error){console.log(error);});
@@ -31,6 +31,51 @@ var mongo = {
             if(db){connected(db);} // passes database object so databasy things can happen
             else  {failed(error);} // what to do when your reason for existence is a lie
         });
+    }
+};
+
+var request = require('request');
+var billing = { // methodes to check billing status in slack, to see if a member gets notifications
+    data: '',
+    getUserId: function(email){
+        // var postData = encodeURI('?token='+process.env.BOT_TOKEN+'&email='+email); // console.log(postData);
+        var options = {
+            hostname: 'slack.com', port: 443,
+            path: '/api/users.lookupByEmail' + encodeURI('?token='+process.env.BOT_TOKEN+'&email='+email),
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'} // , 'Content-Length': postData.length}
+        };
+        var req = https.get(options, function(res){
+            // console.log('statusCode:', res.statusCode);// console.log('headers:', res.headers);
+            var resData = '';
+            res.on('data', function(chunk){resData += chunk;});
+            res.on('end', function(){
+                var resBody = JSON.parse(resData);
+                console.log(resBody.user.id);
+            });
+        });
+        req.on('error', function(error){console.log('error getting user id:' + error);});
+        req.end();
+    },
+    requestUser: function(email){
+        var options = {
+            url: 'https://slack.com/api/users.list', //' lookupByEmail',
+            method: 'GET',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            qs: {'token': process.env.BOT_TOKEN, limit: 5} // , 'email': email}
+        };
+        request(options, function(error, response, body){
+            if(error){console.log(error);}
+            else{
+                console.log('status code:' + response.statusCode);
+                var resBody = JSON.parse(body);
+                // console.log(JSON.stringify(resBody, null, 4));
+                console.log(resBody.members[1].profile.email);
+            }
+        });
+    },
+    test: function(email){
+        // billing.getUserId(email);
+        billing.requestUser(email);
     }
 };
 
@@ -218,7 +263,8 @@ if(process.env.LAMBDA === 'true'){
     exports.activeApi = app.api(compile.veryActiveList, check.activity, 6);
     exports.inactiveApi = app.api(compile.inactiveList, check.inactivity, 6, true);
 } else {
-    app.oneTime(compile.northStarMetric, check.activity, app.monthsDurration(5))();
+    // app.oneTime(compile.northStarMetric, check.activity, app.monthsDurration(5))();
     // app.oneTime(compile.veryActiveList, check.activity, app.monthsDurration(1))();
     // app.oneTime(compile.inactiveList, check.inactivity, app.monthsDurration(1), true)();
+    billing.test(process.env.TEST_EMAIL);
 }
