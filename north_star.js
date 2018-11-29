@@ -14,11 +14,11 @@ var crypto = require('crypto');            // verify request from slack is from 
 var https = require('https');
 
 var slack = {
-    send: function(msg){
+    send: function(msg, webhook){
         var postData = JSON.stringify({'text': msg});
         var options = {
             hostname: 'hooks.slack.com', port: 443, method: 'POST',
-            path: process.env.WEBHOOK_MEMBERSHIP,
+            path: webhook ? webhook : process.env.WEBHOOK_MEMBERSHIP,
             headers: {'Content-Type': 'application/json','Content-Length': postData.length}
         };
         var req = https.request(options, function(res){}); // just do it, no need for response
@@ -37,19 +37,20 @@ var billing = { // methodes to check billing status in slack, to see if a member
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
             qs: {'token': process.env.BOT_TOKEN, 'user': record.slack_id} // , 'email': email}
         };
-        request(options, function onResponse(error, response, body){
+        request(options, function onResponse(error, res, body){
             if(error){console.log(error);}
             else{
                 var resBody = JSON.parse(body);
                 if(resBody.ok){
                     var billingMsg = resBody.billable_info[record.slack_id].billing_active ? '' : ' inactive in slack, contact:' + record.email;
-                    compile.creatMsg(record.checkins + ' checkin(s): ' + record.name + billingMsg);
+                    // compile.creatMsg(record.checkins + ' checkin(s): ' + record.name + billingMsg);
+                    slack.send(record.checkins + ' checkin(s): ' + record.name + billingMsg, process.env.MEMBER_RELATION_WH);
                 } else {console.log('failed to retrieve billable info');} // probably want a real error handler here
             }
-            billing.processed++;
+            /*billing.processed++;
             if(onFinish && billing.processed === compile.inactive){
                 onFinish('Inactive members over past ' + app.durration + ' month' + app.plural + '\n```' + compile.msg + '```');
-            }
+            }*/
         });
     }
 };
@@ -117,16 +118,17 @@ var compile = {
         }
     },
     inactiveList: function(onFinish){
-        var inactive = compile.zeros;
+        // var inactive = compile.zeros;
         for(var i =0; i < compile.records.length; i++){
             if(compile.records[i].goodStanding && !compile.records[i].group){
                 if (compile.records[i].checkins < MEMBER_ACTIVITY_THRESHHOLD) {
-                    inactive++;
+                    // inactive++;
                     billing.get(compile.records[i], onFinish);
                 }
             }
         } // Run reporting function as a response to an api call, cli invocation, test, or cron
-        compile.inactive = inactive;
+        // compile.inactive = inactive;
+        onFinish('Inactive members over past ' + app.durration + ' month' + app.plural);
     }
 };
 
