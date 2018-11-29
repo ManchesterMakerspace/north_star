@@ -203,7 +203,7 @@ var app = {
             streamStart(monthsDurration, compile.checkins, function onFinish(){
                 // slack.send(finalFunction());
                 // console.log(finalFunction()); // for testing purposes
-                finalFunction(console.log);
+                finalFunction(slack.send);
             });
         };
     },
