@@ -143,6 +143,7 @@ var migrate = {
         for(var i=0; i < slack.dir.length; i++){
             if(!slack.dir[i].matched){
                 // migrate.createSlackUser(client, {_id: null}, slack.dir[i]);
+                console.log('Updating user: ' + slack.dir[i].real_name);
                 migrate.updateSlackUser(client, {id: null}, slack.dir[i]);
             }
         }
