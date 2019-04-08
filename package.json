@@ -3,9 +3,6 @@
   "version": "1.3.2",
   "description": "Reports on member activity in the space based on check ins",
   "main": "north_star.js",
-  "scripts": {
-    "postversion": "git push"
-  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ManchesterMakerspace/north_star.git"

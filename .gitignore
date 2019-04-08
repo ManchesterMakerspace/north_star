@@ -1,3 +1,4 @@
 jitploy/decrypted_*
 node_modules
 *.sh
+.serverless
