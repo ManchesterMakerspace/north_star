@@ -5,8 +5,6 @@ var MEMBER_ACTIVITY_GOAL = 3;              // minimal number of checkin ins need
 var MEMBER_ACTIVITY_THRESHHOLD = 5;        // number of checkins under to count as inactive
 var STREAM_FINALIZATION_OFFSET = 100;      // time to take last action after final doc request in stream
 var VERY_ACTIVE_QUALIFIER = 15;            // amount of checkins to qualify as very active
-var MONGO_URI = process.env.MONGODB_URI;   // just to shorten things up
-var DB_NAME = process.env.DB_NAME;
 
 var MongoClient = require('mongodb').MongoClient;
 var querystring = require('querystring');  // Parse urlencoded body
@@ -135,9 +133,9 @@ var compile = {
 var check = {
     error: function(error){console.log('connect error ' + error);},
     activity: function(period, stream, onFinish){
-        MongoClient.connect(MONGO_URI, {useNewUrlParser: true}, function onConnect(connectError, client){
+        MongoClient.connect(process.env.MONGODB_URI, {useNewUrlParser: true}, function onConnect(connectError, client){
             if(client){
-                check.stream(client.db(DB_NAME).collection('checkins').aggregate(
+                check.stream(client.db(process.env.DB_NAME).collection('checkins').aggregate(
                     {$match: {time: {$gt: period} } },
                     {$sort : {time: 1 } }
                 ), client, stream, onFinish);
@@ -149,9 +147,9 @@ var check = {
     },
     membership: function(period, onFinish){
         return function(){
-            MongoClient.connect(MONGO_URI, {useNewUrlParser: true}, function onConnect(connectError, client){
+            MongoClient.connect(process.env.MONGODB_URI, {useNewUrlParser: true}, function onConnect(connectError, client){
                 if(client){
-                    check.stream(client.db(DB_NAME).collection('members').aggregate([
+                    check.stream(client.db(process.env.DB_NAME).collection('members').aggregate([
                         { $match: {'expirationTime': {$gt: period}} },
                         { $lookup: { from: 'slack_users', localField: '_id', foreignField: 'member_id', as: 'slack_users'}},
                         { $project: {
