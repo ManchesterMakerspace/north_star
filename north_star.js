@@ -255,14 +255,8 @@ var app = {
     }
 };
 
-if(process.env.LAMBDA === 'true'){
-    exports.northstarCron = app.oneTime(compile.northStarMetric, check.activity, 1);
-    exports.northstarApi = app.api(compile.northStarMetric, check.activity, 1);
-    exports.activeApi = app.api(compile.veryActiveList, check.activity, 6);
-    exports.inactiveApi = app.api(compile.inactiveList, check.inactivity, 6, true);
-} else {
-    // app.oneTime(compile.northStarMetric, check.activity, 6)();
-    // app.oneTime(compile.veryActiveList, check.activity, 6)();
-    app.oneTime(compile.inactiveList, check.inactivity, 1, true)();
-    // billing.test({email: process.env.TEST_EMAIL, id: process.env.TEST_ID});
-}
+exports.northstarCron = app.oneTime(compile.northStarMetric, check.activity, 1);
+exports.northstarApi = app.api(compile.northStarMetric, check.activity, 1);
+exports.activeApi = app.api(compile.veryActiveList, check.activity, 6);
+exports.inactiveApi = app.api(compile.inactiveList, check.inactivity, 6, true);
+// if(!module.parent){} // run stand alone test
