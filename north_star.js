@@ -10,6 +10,7 @@ var MongoClient = require('mongodb').MongoClient;
 var querystring = require('querystring');  // Parse urlencoded body
 var crypto = require('crypto');            // verify request from slack is from slack with hmac-256
 var https = require('https');
+var request = require('request');          // just couldn't figure it out with billing I guess
 
 var slack = {
     send: function(msg, webhook){
@@ -22,10 +23,20 @@ var slack = {
         var req = https.request(options, function(res){}); // just do it, no need for response
         req.on('error', function(error){console.log(error);});
         req.write(postData); req.end();
+    },
+    im: function(user_id, msg){
+        var postData = '{"channel": "'+user_id+'", "text":"'+ msg + '"}';
+        var options = {
+            hostname: 'slack.com', port: 443, method: 'POST',
+            path: '/api/chat.postMessage',
+            headers: {'Content-type': 'application/json','Content-Length': postData.length, Authorization: 'Bearer ' + process.env.BOT_TOKEN}
+        };
+        var req = https.request(options, function(res){}); // just do it, no need for response
+        req.on('error', function(error){console.log(error);});
+        req.write(postData); req.end();
     }
 };
 
-var request = require('request');
 var billing = { // methodes to check billing status in slack, to see if a member gets notifications
     processed: 0,
     get: function(record, onFinish){
@@ -41,14 +52,9 @@ var billing = { // methodes to check billing status in slack, to see if a member
                 var resBody = JSON.parse(body);
                 if(resBody.ok){
                     var billingMsg = resBody.billable_info[record.slack_id].billing_active ? '' : ' inactive in slack, contact:' + record.email;
-                    // compile.creatMsg(record.checkins + ' checkin(s): ' + record.name + billingMsg);
                     slack.send(record.checkins + ' checkin(s): ' + record.name + billingMsg, process.env.MEMBER_RELATION_WH);
                 } else {console.log('failed to retrieve billable info');} // probably want a real error handler here
             }
-            /*billing.processed++;
-            if(onFinish && billing.processed === compile.inactive){
-                onFinish('Inactive members over past ' + app.durration + ' month' + app.plural + '\n```' + compile.msg + '```');
-            }*/
         });
     }
 };
@@ -57,9 +63,7 @@ var compile = {
     records: [],
     startReportMillis: 0,
     msg: '',
-    inactive: 0,
     zeros: 0,
-    creatMsg: function(string){compile.msg += string + '\n';},           // helper that adds new lines to compiled results
     ignoreList: ['Landlords Fob', "Landlord's Fob 2"], // Not a great way to this but its more space efficient than alternitives
     checkins: function(record){                                          // copiles records into compile.records
         for(var ignore=0; ignore<compile.ignoreList.length; ignore++){   // e.g. landlord activity is redundant
@@ -96,8 +100,8 @@ var compile = {
         }
         for(var i=0; i<compile.records.length; i++){                   // check if we have a local record in memory to update
             if(compile.records[i].name === record.fullname){           // if this matches an existing check-in
-                compile.records[i].slack_id = record.slack.slack_id;// tack on slack ids from aggregation
-                compile.records[i].email= record.slack.slack_email; // tack email with slack from aggregation as well
+                compile.records[i].slack_id = record.slack.slack_id;   // tack on slack ids from aggregation
+                compile.records[i].email= record.slack.slack_email;    // tack email with slack from aggregation as well
                 if(record.groupName){                                  // make a note of paying members
                     compile.records[i].group = record.groupName;
                     compile.records[i].goodStanding = true;            // NOTE think about this if a group expires
@@ -116,16 +120,13 @@ var compile = {
         }
     },
     inactiveList: function(onFinish){
-        // var inactive = compile.zeros;
         for(var i =0; i < compile.records.length; i++){
             if(compile.records[i].goodStanding && !compile.records[i].group){
-                if (compile.records[i].checkins < MEMBER_ACTIVITY_THRESHHOLD) {
-                    // inactive++;
+                if (compile.records[i].checkins < MEMBER_ACTIVITY_THRESHHOLD){
                     billing.get(compile.records[i], onFinish);
                 }
             }
         } // Run reporting function as a response to an api call, cli invocation, test, or cron
-        // compile.inactive = inactive;
         onFinish('Inactive members over past ' + app.durration + ' month' + app.plural);
     }
 };
@@ -143,25 +144,39 @@ var check = {
         });
     },
     inactivity: function(period, stream, onFinish){
-        check.activity(period, stream, check.membership(period, onFinish)); // squeeze in an extra stream to get more information
-    },
-    membership: function(period, onFinish){
-        return function(){
+        check.activity(period, stream, function(){
             MongoClient.connect(process.env.MONGODB_URI, {useNewUrlParser: true}, function onConnect(connectError, client){
                 if(client){
-                    check.stream(client.db(process.env.DB_NAME).collection('members').aggregate([
-                        { $match: {'expirationTime': {$gt: period}} },
-                        { $lookup: { from: 'slack_users', localField: '_id', foreignField: 'member_id', as: 'slack_users'}},
-                        { $project: {
-                            fullname: {$concat: ['$firstname', ' ', '$lastname']},
-                            _id: 1, expirationTime: 1, groupName: 1,
-                            slack: {$arrayElemAt: ["$slack_users", 0]}
-                         } }
-                    ]), client, compile.membership, onFinish);
+                    check.streamNoClose(client.db(process.env.DB_NAME).collection('checkins').aggregate(
+                        {$match: {time: {$gt: period} } },
+                        {$sort : {time: 1 } }
+                    ), client, stream, function onFirstStreamFinish(){
+                        check.stream(client.db(process.env.DB_NAME).collection('members').aggregate([
+                            { $match: {'expirationTime': {$gt: period}} },
+                            { $lookup: { from: 'slack_users', localField: '_id', foreignField: 'member_id', as: 'slack_users'}},
+                            { $project: {
+                                fullname: {$concat: ['$firstname', ' ', '$lastname']},
+                                _id: 1, expirationTime: 1, groupName: 1,
+                                slack: {$arrayElemAt: ["$slack_users", 0]}
+                             } }
+                        ]), client, compile.membership, onFinish);
+                    });
                 } else {check.error(connectError);}
             });
-            return false; // signal we are still doing something
-        };
+        });
+    },
+    streamNoClose: function(cursor, client, stream, onFinish){
+        process.nextTick(function onNextTick(){                     // forego blocking anything with the stream
+            cursor.next(function onDoc(error, record){              // when next document in the stream is ready
+                if(record){                                         // as long as stream produces records
+                    stream(record);                                 // function for streaming docs into
+                    check.stream(cursor, client, stream, onFinish); // recursively move through all members in collection
+                } else {
+                    if(error){console.log('on check: ' + error);}
+                    else {setTimeout(onFinish, STREAM_FINALIZATION_OFFSET);}
+                }
+            });
+        });
     },
     stream: function(cursor, client, stream, onFinish){
         process.nextTick(function onNextTick(){                     // forego blocking anything with the stream
@@ -198,11 +213,7 @@ var app = {
     oneTime: function(finalFunction, streamStart, monthsBack, private){
         return function(event, context){
             var monthsDurration = app.monthsDurration(monthsBack);
-            streamStart(monthsDurration, compile.checkins, function onFinish(){
-                // slack.send(finalFunction());
-                // console.log(finalFunction()); // for testing purposes
-                finalFunction(slack.send);
-            });
+            streamStart(monthsDurration, compile.checkins, function onFinish(){finalFunction(slack.send);});
         };
     },
     private: function(isPrivate, body){ // logic for deciding on wether to show information
@@ -225,15 +236,16 @@ var app = {
                     var monthsDurration = app.monthsDurration(monthsBack);
                     streamStart(monthsDurration, compile.checkins, function onFinish(){          // start db request before varification for speed
                         finalFunction(function(msg){                                             // run passed compilation totalling function
+                            slack.im(body.user_id, msg);
                             response.body = JSON.stringify({
-                                'response_type' : body.text === 'show' ? 'in_channel' : 'ephemeral', // 'in_channel' or 'ephemeral'
-                                'text' : msg
+                                'response_type' : 'ephemeral',                                   // 'in_channel' or 'ephemeral'
+                                'text' : 'check slackbot for response'
                             });
                             callback(null, response);
                         });
                     });
                 } else {
-                    response.body = JSON.stringify({'response_type': 'ephemeral', 'text': 'Only can be displayed in authorized channels'});
+                    response.body = JSON.stringify({'response_type': 'ephemeral', 'text': 'Only shown to those in members relations, notifying them, thanks for the interest'});
                     callback(null, response);
                 }
             } else {
