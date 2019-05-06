@@ -273,7 +273,7 @@ exports.testApi = function(event, context, callback){
     var body = querystring.parse(event.body);                                            // parse urlencoded body
     var response = {statusCode:403, headers: {'Content-type': 'application/json'}};      // default case
     if(varify.request(event)){                                                           // verify signing secret
-        slack.send('@channel ' + body.txt, process.env.MEMBER_RELATION_WH);
+        slack.send('<!channel> ' + body.txt, process.env.MEMBER_RELATION_WH);
         response.statusCode = 200;
         response.body = JSON.stringify({
             'response_type' : 'ephemeral',                                               // 'in_channel' or 'ephemeral'
