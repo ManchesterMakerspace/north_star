@@ -269,4 +269,20 @@ exports.northstarCron = app.oneTime(compile.northStarMetric, check.activity, 1);
 exports.northstarApi = app.api(compile.northStarMetric, check.activity, 1);
 exports.activeApi = app.api(compile.veryActiveList, check.activity, 6);
 exports.inactiveApi = app.api(compile.inactiveList, check.inactivity, 6, true);
+exports.testApi = function(event, context, callback){
+    var body = querystring.parse(event.body);                                            // parse urlencoded body
+    var response = {statusCode:403, headers: {'Content-type': 'application/json'}};      // default case
+    if(varify.request(event)){                                                           // verify signing secret
+        slack.send('@channel ' + body.txt, process.env.MEMBER_RELATION_WH);
+        response.statusCode = 200;
+        response.body = JSON.stringify({
+            'response_type' : 'ephemeral',                                               // 'in_channel' or 'ephemeral'
+            'text' : 'test message sent'
+        });
+        callback(null, response);
+    } else {
+        console.log('failed to varify signature :' + JSON.stringify(event, null, 4));
+        callback(null, response);
+    }
+};
 // if(!module.parent){} // run stand alone test
