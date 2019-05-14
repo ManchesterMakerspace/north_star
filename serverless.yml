@@ -40,9 +40,3 @@ functions:
             - http:
                 path: inactive
                 method: POST
-    testapi:
-        handler: north_star.testApi
-        events:
-            - http:
-                path: test
-                method: POST
